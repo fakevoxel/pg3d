@@ -4,7 +4,7 @@ import pygame as pg
 
 def main():
     # start the engine
-    engine.init(800,600,np.pi / 4)
+    engine.init(400,300,np.pi / 4)
     # set the background color to blue
     engine.setBackGroundColor(0,0,255)
 

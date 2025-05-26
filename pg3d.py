@@ -497,7 +497,7 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
 
     text_size = [len(texture)-1, len(texture[0])-1]
     color_scale = 230/np.max(np.abs(points2[:,:3]))
-    for index in range(len(triangles)):
+    for index in range(1):
         
         triangle = triangles[index]
 
@@ -508,17 +508,10 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
         # backface culling with dot product between normal and camera ray
         normal = np.cross(vet1, vet2)
         normal = normal/np.sqrt(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2])
-        #CameraRay = (points2[triangle[0]][:3] - camera[:3])/points2[triangle[0]][5]
-        CameraRay = normalize_vector(points2[triangle[0]][:3] - camera[:3])
 
-        # get projected 2d points for crude filtering of offscreen triangles
-        xxs = [points2[triangle[0]][3],  points2[triangle[1]][3],  points2[triangle[2]][3]]
-        yys = [points2[triangle[0]][4],  points2[triangle[1]][4],  points2[triangle[2]][4]]
-        z_min = min([points2[triangle[0]][5],  points2[triangle[1]][5],  points2[triangle[2]][5]])
+        max_z = max([points2[triangle[0]][5], points2[triangle[1]][5], points2[triangle[2]][5]])
 
-        # check valid values
-        if filter_triangles(z_min, normal, CameraRay, xxs, yys):
-
+        if (max_z > 0):
             shade = 0.5*dot_3d(light_dir, normal) + 0.5 #  directional lighting
 
             proj_points = points2[triangle][:,3:]
@@ -530,17 +523,22 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
 
             x_slopes = get_slopes(start[0], middle[0], stop[0], start[1], middle[1], stop[1])
 
-            if textured:
-                z0, z1, z2 = 1/proj_points[0][2], 1/proj_points[1][2], 1/proj_points[2][2]
-                uv_points = texture_uv[texture_map[index]]
-                uv_points[0], uv_points[1], uv_points[2] = uv_points[0]*z0, uv_points[1]*z1, uv_points[2]*z2
-                draw_text_triangles(frame, z_buffer, texture, proj_points, start, middle, stop, uv_points, x_slopes, shade, text_size, z0, z1, z2)
+            # if textured:
+            #     z0, z1, z2 = 1/proj_points[0][2], 1/proj_points[1][2], 1/proj_points[2][2]
+            #     uv_points = texture_uv[texture_map[index]]
+            #     uv_points[0], uv_points[1], uv_points[2] = uv_points[0]*z0, uv_points[1]*z1, uv_points[2]*z2
+            #     draw_text_triangles(frame, z_buffer, texture, proj_points, start, middle, stop, uv_points, x_slopes, shade, text_size, z0, z1, z2)
 
-            else:
-                color = shade*np.abs(points2[triangles[index][0]][:3])*color_scale + 25
-                start[2], middle[2], stop[2] = 1/start[2], 1/middle[2], 1/stop[2]
-                z_slopes = get_slopes(start[2], middle[2], stop[2], start[1], middle[1], stop[1])
-                draw_flat_triangle(frame, z_buffer, color, start, middle, stop, x_slopes, z_slopes)
+            # else:
+            #     color = shade*np.abs(points2[triangles[index][0]][:3])*color_scale + 25
+            #     start[2], middle[2], stop[2] = 1/start[2], 1/middle[2], 1/stop[2]
+            #     z_slopes = get_slopes(start[2], middle[2], stop[2], start[1], middle[1], stop[1])
+            #     draw_flat_triangle(frame, z_buffer, color, start, middle, stop, x_slopes, z_slopes)
+
+            color = shade*np.abs(points2[triangles[index][0]][:3])*color_scale + 25
+            start[2], middle[2], stop[2] = 1/start[2], 1/middle[2], 1/stop[2]
+            z_slopes = get_slopes(start[2], middle[2], stop[2], start[1], middle[1], stop[1])
+            draw_flat_triangle(frame, z_buffer, color, start, middle, stop, x_slopes, z_slopes)
 
 @njit()
 def rotate(point, rot):
@@ -575,7 +573,8 @@ def draw_text_triangles(frame, z_buffer, texture, proj_points, start, middle, st
 
             if z < z_buffer[x, y] and min(u,v) >= 0 and max(u,v) < 1:
                 z_buffer[x, y] = z
-                frame[x, y] = shade*texture[int(u*text_size[0])][int(v*text_size[1])]
+                #frame[x, y] = shade*texture[int(u*text_size[0])][int(v*text_size[1])]
+                frame[x, y] = np.asarray([u * 255,v * 255,0]).astype('uint8')
 
 @njit()
 def draw_flat_triangle(frame, z_buffer, color, start, middle, stop, x_slopes, z_slopes):
@@ -620,18 +619,7 @@ def get_slopes(num_start, num_middle, num_stop, den_start, den_middle, den_stop)
     slope_2 = (num_middle - num_start)/(den_middle - den_start + 1e-32)
     slope_3 = (num_stop - num_middle)/(den_stop - den_middle + 1e-32)
 
-    return np.asarray([slope_1, slope_2, slope_3])
-
-@njit()
-def filter_triangles(z_min, normal, CameraRay, xxs, yys): #TODO replace filtering with proper clipping
-    # only points on +z, facing the camera, check triangle bounding box
-
-    # and max(xxs) >= 0 and min(xxs) < screenWidth and max(yys) >= 0 and min(yys) < screenHeight
-    
-    if z_min > 0 and dot_3d(normal, CameraRay) < 0:
-        return True
-    else:
-        return False     
+    return np.asarray([slope_1, slope_2, slope_3]) 
 
 # interpolation for direction
 # not sure if this is how slerp is supposed to be done but ah well
