@@ -1,17 +1,20 @@
-# rendering code was written by ________, and heavily modified by me
+# rendering code was written by FINFET, and heavily modified by me
 
 import pygame as pg
 import numpy as np
 from numba import njit
 
+# these are the default values for the screen
+# they aren't gonna do anything, because the user passes their own values when they call init()
 screenWidth = 800
 screenHeight = 600
-
 verticalFOV = np.pi / 4
 horizontalFOV = verticalFOV*screenWidth/screenHeight
 
+# this is the default sky color, but can be set using setSkyColor()
 skyColor = np.asarray([200,100,0]).astype('uint8')
 
+# mouse shennanigans
 mouseChange = np.asarray([0.0,0.0])
 mousePos = np.asarray([0.0,0.0])
 mouseOffset = np.asarray([0.0,0.0])
@@ -19,15 +22,94 @@ mouseOffset = np.asarray([0.0,0.0])
 cameraMoveSpeed = 10
 cameraRotateSpeed = 0.001
 
-shipVelocity = np.asarray([0.0,0.0,0.0])
-maxShipVelocity = 1
-
+# physics
 gravityCoefficient = 0.5
 
+# clock stuff
+clock = pg.time.Clock()
 timeSinceLastFrame = 0
 
+# the camera
+# position (x,y,z), forward (x,y,z), up (x,y,z)
 camera = np.asarray([0.0, 0.0, -10.0,       0.0, 0.0, 1.0,      0.0, 1.0, 0.0])
-clock = pg.time.Clock()
+
+# ********      main engine functions:     ********   
+def init(w, h, ver):
+    global screenWidth
+    global screenHeight
+    global verticalFOV
+    global horizontalFOV
+
+    global camera
+    global clock
+
+    screenWidth = w
+    screenHeight = h
+    verticalFOV = ver
+    horizontalFOV = verticalFOV*screenWidth/screenHeight
+
+    # required for pygame to work properly
+    pg.init()
+
+    clock = pg.time.Clock()
+
+    camera = np.asarray([0.0, 0.0, -10.0,       0.0, 0.0, 1.0,      0.0, 1.0, 0.0])
+
+    pg.display.set_mode((screenWidth, screenHeight), pg.FULLSCREEN)
+
+    pg.mouse.set_visible(0)
+    pg.mouse.set_pos(screenWidth/2,screenHeight/2)
+
+def update():
+    global timeSinceLastFrame
+    global clock
+
+    timeSinceLastFrame = clock.tick()*0.001
+
+    updateCursor()
+
+    for i in getObjectsWithTag("physics"):
+        i.add_velocity(0.0,-1.0 * timeSinceLastFrame * gravityCoefficient, 0.0)
+        i.add_position(i.linearVelocity[0] * timeSinceLastFrame,i.linearVelocity[1] * timeSinceLastFrame,i.linearVelocity[2] * timeSinceLastFrame)
+
+    pg.display.set_caption(str(timeSinceLastFrame))
+
+def getFrame():
+    global camera
+    global skyColor
+
+    # like a directional light in unity
+    light_dir = np.asarray([0.0,1.0,0.0])
+    light_dir = light_dir/np.linalg.norm(light_dir)
+
+    frame= np.ones((screenWidth, screenHeight, 3)).astype('uint8')
+    z_buffer = np.ones((screenWidth, screenHeight))
+
+    # initialize the frame
+    frame[:,:,:] = skyColor
+    z_buffer[:,:] = 0 # start with some SMALL value
+    # the value is small because the z buffer stores values of 1/z, so 0 represents the largest depth possible (it would be 1/infinity)
+
+    # draw the frame
+    # TODO: proper object spawning
+    for model in Model._registry:
+        # this function will move the points so that they are centered around the camera
+        # basically, handling the camera position/rotation stuff
+        transform_points(model, model.points, camera)
+        # this function will project the triangles onto the screen, and draw them
+        draw_model(model, frame, model.points, model.triangles, camera, light_dir, z_buffer,
+                    model.texture_uv, model.texture_map, model.texture)
+    
+    return frame
+
+def drawScreen(frame):
+    # turn the frame into a surface
+    surf = pg.surfarray.make_surface(frame)
+    # blit that (draw it) onto the screen
+    pg.display.get_surface().blit(surf, (0,0)); pg.display.update()
+
+def quit():
+    pg.quit()
 
 def setGravity(a):
     global gravityCoefficient
@@ -77,7 +159,7 @@ def updateCursor():
         mouseOffset[0] += pg.mouse.get_pos()[0] - screenWidth/2
         mouseOffset[1] += pg.mouse.get_pos()[1] - screenHeight/2
         pg.mouse.set_pos(screenWidth/2,screenHeight/2)
-    mouseChange = subtract_vector_2d(mouse_position(), mousePos)
+    mouseChange = subtract_2d(mouse_position(), mousePos)
     mousePos = mouse_position()
 def mouse_position():
     return pg.mouse.get_pos() + mouseOffset
@@ -92,72 +174,11 @@ def rotateCamera():
     rotate_camera(camera,camera_up(camera),xChange * -0.001)
     rotate_camera(camera,camera_right(camera),yChange * 0.001)
 
-def init(w, h, ver):
-    global screenWidth
-    global screenHeight
-    global verticalFOV
-    global horizontalFOV
-
-    global camera
-    global clock
-
-    screenWidth = w
-    screenHeight = h
-    verticalFOV = ver
-    horizontalFOV = verticalFOV*screenWidth/screenHeight
-
-    # required for pygame to work properly
-    pg.init()
-
-    clock = pg.time.Clock()
-
-    # position (x,y,z), right (x,y,z), up (x,y,z), forward (x,y,z)
-    camera = np.asarray([0.0, 0.0, -10.0,       0.0, 0.0, 1.0,      0.0, 1.0, 0.0])
-
-    pg.display.set_mode((screenWidth, screenHeight), pg.FULLSCREEN)
-
-    pg.mouse.set_visible(0)
-    pg.mouse.set_pos(screenWidth/2,screenHeight/2)
+# ********   OBJECT functions:     ********
 
 def setBackGroundColor(r,g,b):
     global skyColor
     skyColor = np.asarray([r,g,b]).astype('uint8')
-
-def update():
-    global timeSinceLastFrame
-    global clock
-
-    timeSinceLastFrame = clock.tick()*0.001
-
-    updateCursor()
-
-    for i in getObjectsWithTag("physics"):
-        i.add_velocity(0.0,-1.0 * timeSinceLastFrame * gravityCoefficient, 0.0)
-        i.add_position(i.linearVelocity[0] * timeSinceLastFrame,i.linearVelocity[1] * timeSinceLastFrame,i.linearVelocity[2] * timeSinceLastFrame)
-
-def getFrame():
-    global camera
-    global skyColor
-
-    # like a directional light in unity
-    light_dir = np.asarray([0.0,1.0,0.0])
-    light_dir = light_dir/np.linalg.norm(light_dir)
-
-    frame= np.ones((screenWidth, screenHeight, 3)).astype('uint8')
-    z_buffer = np.ones((screenWidth, screenHeight))
-
-    # initialize the frame
-    frame[:,:,:] = skyColor
-    z_buffer[:,:] = 1e32 # start with some big value
-
-    # draw the frame
-    # TODO: proper object spawning
-    for model in Model._registry:
-        project_points(model, model.points, camera)
-        draw_model(model, frame, model.points, model.triangles, camera, light_dir, z_buffer, model.textured,
-                    model.texture_uv, model.texture_map, model.texture)
-    
-    return frame
 
 def spawnCube(x,y,z,tags):
     name = nameModel("cube")
@@ -193,14 +214,6 @@ def nameModel(attemptedName):
         return attemptedName + "(" + str(objectCount) + ")"
     else:
         return attemptedName
-    
-def getFirstIndex(string, char):
-    
-    for i in range(len(string)):
-        if (string[i] == char):
-            return i
-    
-    return len(string)
 
 def getObject(name):
     for i in Model._registry:
@@ -222,15 +235,611 @@ def namesMatch(a,b):
             return False
         
     return True
-            
-def drawScreen(frame):
-    # turn the frame into a surface
-    surf = pg.surfarray.make_surface(frame)
-    # blit that (draw it) onto the screen
-    pg.display.get_surface().blit(surf, (0,0)); pg.display.update()
+    
+# ********  UI functions! (the annoying stuff)       ********
 
-def quit():
-    pg.quit()
+# draw a rectangle on the screen
+def draw_rect(frameArray, xPos, yPos, xSize, ySize, color):
+    global screenWidth
+    global screenHeight
+
+    minX = int(xPos-xSize/2)
+    maxX = int(xPos+xSize/2)
+
+    minY = int(yPos-ySize/2)
+    maxY = int(yPos+ySize/2)
+    
+    for x in range(max(0,minX),min(screenWidth-1,maxX)):
+        for y in range(max(0,minY),min(screenHeight-1,maxY)):
+            frameArray[x,y] = color.astype('uint8')
+
+    return frameArray
+
+# draw a circle on the screen
+def draw_circle(frameArray, xPos, yPos, radius, color):
+    global screenWidth
+    global screenHeight
+
+    minX = int(xPos - radius)
+    maxX = int(xPos + radius)
+
+    minY = int(yPos - radius)
+    maxY = int(yPos + radius)
+    
+    for x in range(max(0,minX),min(screenWidth-1,maxX)):
+        for y in range(max(0,minY),min(screenHeight-1,maxY)):
+            if ((x - xPos) * (x - xPos) + (y - yPos) * (y - yPos) < radius * radius):
+                frameArray[x,y] = color.astype('uint8')
+
+    return frameArray
+
+# ********  drawing functions! (the annoying stuff)       ********
+
+@njit
+def rotate_point_3d(vector, axis, angle):
+    # rotate around x axis
+    i = np.asarray([0.0,0.0,0.0,0.0,0.0,0.0])
+    i[3] = vector[3] * (     (axis[0] * axis[0]) * (1 - np.cos(angle)) + np.cos(angle)                  ) + vector[4] * (        (axis[1] * axis[0]) * (1 - np.cos(angle)) - (axis[2] * np.sin(angle))         ) + vector[5] * (        (axis[0] * axis[2]) * (1 - np.cos(angle)) + (axis[1] * np.sin(angle))     )
+    i[4] = vector[3] * (     (axis[0] * axis[1]) * (1 - np.cos(angle)) + (axis[2] * np.sin(angle))     ) + vector[4] * (        (axis[1] * axis[1]) * (1 - np.cos(angle)) + np.cos(angle)                      ) + vector[5] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) - (axis[0] * np.sin(angle))     )
+    i[5] = vector[3] * (     (axis[0] * axis[2]) * (1 - np.cos(angle)) - (axis[1] * np.sin(angle))     ) + vector[4] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) + (axis[0] * np.sin(angle))         ) + vector[5] * (        (axis[2] * axis[2]) * (1 - np.cos(angle)) + np.cos(angle)                  )
+    
+    return i   
+
+# this function will move the points so that they are centered around the camera
+def transform_points(mesh, points, camera):
+    global screenWidth
+    global screenHeight
+
+    global horizontalFOV
+    global verticalFOV
+
+    # first, go through the points to figure out where the point is in world space
+    # (using the mesh's transforms)
+    for i in points:
+        j = mesh.transform_point(i)
+
+        i[3] = j[3]
+        i[4] = j[4]
+        i[5] = j[5]
+
+    # the rest of this function turns the world=relative points into camera-relative points
+
+    # translate to have camera as origin
+    points[:,3] -= camera[0]
+    points[:,4] -= camera[1]
+    points[:,5] -= camera[2]
+
+    camZ = camera_forward(camera)
+    forwardVectorAxis = normalize_3d(cross_3d(camZ,np.asarray([0.0,0.0,1.0])))
+    forwardVectorAngle = angle_3d(np.asarray([0.0,0.0,1.0]),camZ)
+
+    if (forwardVectorAngle > 0):
+        for i in points:
+            j = rotate_point_3d(i, forwardVectorAxis, forwardVectorAngle)
+            i[3] = j[3]
+            i[4] = j[4]
+            i[5] = j[5]
+
+    upVectorAxis = normalize_3d(cross_3d(rotate_vector_3d(camera_up(camera),forwardVectorAxis,forwardVectorAngle),np.asarray([0.0,1.0,0.0])))
+    upVectorAngle = angle_3d(np.asarray([0.0,1.0,0.0]), rotate_vector_3d(camera_up(camera),forwardVectorAxis,forwardVectorAngle))
+
+    if (upVectorAngle > 0):
+        for i in points:
+            j = rotate_point_3d(i, upVectorAxis, upVectorAngle)
+            i[3] = j[3]
+            i[4] = j[4]
+            i[5] = j[5]
+
+    # this will be used for projection
+    hor_fov_adjust = 0.5*screenWidth/ np.tan(horizontalFOV * 0.5) 
+    ver_fov_adjust = 0.5*screenHeight/ np.tan(verticalFOV * 0.5)
+    
+    # the projected points are stored in indices 6,7,8 so as to not overwrite the other sets of points
+    points[:,6] = (-hor_fov_adjust*points[:,3]/np.abs(points[:,5]) + 0.5*screenWidth).astype(np.int32)
+    points[:,7] = (-ver_fov_adjust*points[:,4]/np.abs(points[:,5]) + 0.5*screenHeight).astype(np.int32)
+    points[:,8] = points[:,5]
+
+    # there's no need to return anything here, because we're just modifying the array we were given
+
+# figuring out whether a triangle is in front of the camera (return 0), behind (return 1), or both (return 2, needs to be clipped)
+def triangle_state(points, triangle):
+    state0 = True
+    state1 = True
+    state2 = True
+    if (points[triangle[0]][8] < 0):
+        state0 = False
+    if (points[triangle[1]][8] < 0):
+        state1 = False
+    if (points[triangle[2]][8] < 0):
+        state2 = False
+
+    if (state0 and state1 and state2):
+        return 0 # all in front
+    elif (not state0 and not state1 and not state2):
+        return 1 # all behind
+    else:
+        return 2 # both
+
+def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, texture_uv, texture_map, texture):
+    global screenWidth
+    global screenHeight
+
+    # for the first part of things, we're gonna use the set of points that's transformed to be camera-relative
+    # in other words, indices 3,4 and 5
+
+    # the size of the mesh's texture
+    text_size = [len(texture)-1, len(texture[0])-1]
+    for index in range(len(triangles)):
+        
+        triangle = triangles[index]
+
+        # Use Cross-Product to get surface normal
+        # as said above, this is relative to the camera
+        vet1 = np.asarray([points[triangle[1]][3]  - points[triangle[0]][3],points[triangle[1]][4]  - points[triangle[0]][4],points[triangle[1]][5]  - points[triangle[0]][5]])
+        vet2 = np.asarray([points[triangle[2]][3]  - points[triangle[0]][3],points[triangle[2]][4]  - points[triangle[0]][4],points[triangle[2]][5]  - points[triangle[0]][5]])
+
+        # camera relative normal vector
+        # it's not a unit vector! it will have magnitude of sin(theta)
+        normal = np.cross(vet1, vet2)
+
+        # ******* STEP 1: *******
+        # we have to figure out which triangles are behind the camera, in front of the camera, or both (some verts behind, some in front)
+
+        # 0 if in front, 1 if behind, 2 if both
+        triangleState = triangle_state(points, triangle)
+
+        # only draw the triangle if state is 1, meaning entirely in front
+        if (triangleState == 0):
+            # ******* STEP 2: *******
+            # once we've confirmed we're drawing the shape, we have to project it onto the screen
+
+            # defining the points the triangle is made of
+            projpoints = []
+            projpoints.append(points[triangle[0]])
+            projpoints.append(points[triangle[1]])
+            projpoints.append(points[triangle[2]])
+            # (the points have their projected versions stored as indices 6,7,8)
+
+            # getting the depth values of each point (using 8, the projected depth)
+            z0 = 1 / projpoints[0][8]
+            z1 = 1 / projpoints[1][8]
+            z2 = 1 / projpoints[2][8]
+            # keep in mind that these are always positive here, because of the triangle state check
+
+            # figuring out the uv coordinates of each point
+            uv_points = texture_uv[texture_map[index]]
+            uv_points[0], uv_points[1], uv_points[2] = uv_points[0]*z0, uv_points[1]*z1, uv_points[2]*z2
+
+            # the bounding box that the triangle occupies
+            minX = np.min([projpoints[0][6],projpoints[1][6],projpoints[2][6]])
+            maxX = np.max([projpoints[0][6],projpoints[1][6],projpoints[2][6]])
+
+            minY = np.min([projpoints[0][7],projpoints[1][7],projpoints[2][7]])
+            maxY = np.max([projpoints[0][7],projpoints[1][7],projpoints[2][7]])
+
+            draw_triangle(frame, z_buffer, texture, projpoints, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2)
+        elif(triangleState == 2):
+            # here, the triangle is both behind and in front, and we need to clip it
+
+            # defining the points the triangle is made of
+            projpoints = []
+            projpoints.append(points[triangle[0]])
+            projpoints.append(points[triangle[1]])
+            projpoints.append(points[triangle[2]])
+            # (the points have their projected versions stored as indices 6,7,8)
+
+            # getting the depth values of each point (using 8, the projected depth)
+            z0 = projpoints[0][8]
+            z1 = projpoints[1][8]
+            z2 = projpoints[2][8]
+            # these are NOT always positive! at least one will be <0
+
+            # ******* STEP 3: *******
+            # this step only applies to type-2 triangles
+            # we CANNOT, UNDER ANY CIRCUMSTANCES, render triangles behind the camera with our method
+            # don't try.
+            # instead:
+            # we have to clip the triangle, and then render the new 1 or 2 triangles
+            # these new triangles will be in front
+
+            # in other words:
+            # 1. figure out the problem vertices
+            # 2. figure out where the line segments intersect the z-plane
+            # 3. build new triangles, including things like uv coordinates
+            # 4. feed those triangles to draw_triangle
+
+            problemVertices = []
+            goodVertices = []
+            goodUV = []
+            problemUV = []
+
+            rawUVs = texture_uv[texture_map[index]]
+
+            # add any <0 vertices to a list
+            # using the same index convention as normal points
+            if (z0 < 0):
+                problemVertices.append(np.asarray([0.0,0.0,0.0,projpoints[0][3],projpoints[0][4],projpoints[0][5],projpoints[0][6],projpoints[0][7],projpoints[0][8]]))
+                problemUV.append(rawUVs[0])
+            else:
+                goodVertices.append(np.asarray([0.0,0.0,0.0,projpoints[0][3],projpoints[0][4],projpoints[0][5],projpoints[0][6],projpoints[0][7],projpoints[0][8]]))
+                goodUV.append(rawUVs[0])
+            if (z1 < 0):
+                problemVertices.append(np.asarray([0.0,0.0,0.0,projpoints[1][3],projpoints[1][4],projpoints[1][5],projpoints[1][6],projpoints[1][7],projpoints[1][8]]))
+                problemUV.append(rawUVs[1])
+            else:
+                goodVertices.append(np.asarray([0.0,0.0,0.0,projpoints[1][3],projpoints[1][4],projpoints[1][5],projpoints[1][6],projpoints[1][7],projpoints[1][8]]))
+                goodUV.append(rawUVs[1])
+            if (z2 < 0):
+                problemVertices.append(np.asarray([0.0,0.0,0.0,projpoints[2][3],projpoints[2][4],projpoints[2][5],projpoints[2][6],projpoints[2][7],projpoints[2][8]]))
+                problemUV.append(rawUVs[2])
+            else:
+                goodVertices.append(np.asarray([0.0,0.0,0.0,projpoints[2][3],projpoints[2][4],projpoints[2][5],projpoints[2][6],projpoints[2][7],projpoints[2][8]]))
+                goodUV.append(rawUVs[2])
+
+            if (len(problemVertices) == 2):
+                # first case, where two vertices are behind
+                # here we will end up with one clipped triangle
+
+                # getting the intersect point in camera-relative space
+                # using 3, 4, 5 because we want cam-relative
+
+                # here is our triangle as-is
+                p1 = np.asarray([goodVertices[0][3],goodVertices[0][4],goodVertices[0][5]])
+                p2 = np.asarray([problemVertices[0][3],problemVertices[0][4],problemVertices[0][5]])
+                p3 = np.asarray([problemVertices[1][3],problemVertices[1][4],problemVertices[1][5]])
+
+                parameter = (0.01 - p2[2]) / (p1[2] - p2[2])
+                intersect1 = add_3d(p2, np.asarray([(p1[0]-p2[0]) * parameter,(p1[1]-p2[1]) * parameter,(p1[2]-p2[2]) * parameter]))
+                goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
+                goodUV.append(np.asarray([problemUV[0][0] + (goodUV[0][0] - problemUV[0][0]) * parameter, problemUV[0][1] + (goodUV[0][1] - problemUV[0][1]) * parameter]))
+
+                parameter = (0.01 - p3[2]) / (p1[2] - p3[2])
+                intersect1 = add_3d(p3, np.asarray([(p1[0]-p3[0]) * parameter,(p1[1]-p3[1]) * parameter,(p1[2]-p3[2]) * parameter]))
+                goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
+                goodUV.append(np.asarray([problemUV[1][0] + (goodUV[0][0] - problemUV[1][0]) * parameter, problemUV[1][1] + (goodUV[0][1] - problemUV[1][1]) * parameter]))
+
+                # the good vertices array will have items with ONLY SIX VALUES, representing the cam-relative points and then the projected points
+                # however, right now the projected part is all zeros
+
+                # gotta project those points
+                hor_fov_adjust = 0.5*screenWidth/ np.tan(horizontalFOV * 0.5) 
+                ver_fov_adjust = 0.5*screenHeight/ np.tan(verticalFOV * 0.5)
+
+                goodVertices[1][6] = (-hor_fov_adjust*goodVertices[1][3]/np.abs(goodVertices[1][5]) + 0.5*screenWidth).astype(np.int32)
+                goodVertices[1][7] = (-ver_fov_adjust*goodVertices[1][4]/np.abs(goodVertices[1][5]) + 0.5*screenHeight).astype(np.int32)
+                goodVertices[1][8] = goodVertices[1][5] 
+
+                goodVertices[2][6] = (-hor_fov_adjust*goodVertices[2][3]/np.abs(goodVertices[2][5]) + 0.5*screenWidth).astype(np.int32)
+                goodVertices[2][7] = (-ver_fov_adjust*goodVertices[2][4]/np.abs(goodVertices[2][5]) + 0.5*screenHeight).astype(np.int32)
+                goodVertices[2][8] = goodVertices[2][5]     
+
+                # the bounding box that the triangle occupies
+                minX = np.min([goodVertices[0][6],goodVertices[1][6],goodVertices[2][6]])
+                maxX = np.max([goodVertices[0][6],goodVertices[1][6],goodVertices[2][6]])
+
+                minY = np.min([goodVertices[0][7],goodVertices[1][7],projpoints[2][7]])
+                maxY = np.max([goodVertices[0][7],goodVertices[1][7],projpoints[2][7]])
+
+                # new z values!
+                z0 = 1 / goodVertices[0][8]
+                z1 = 1 / goodVertices[1][8]
+                z2 = 1 / goodVertices[2][8]
+
+                goodUV[0] = goodUV[0] * z0
+                goodUV[1] = goodUV[1] * z1
+                goodUV[2] = goodUV[2] * z2
+
+                # now that we have our three triangle points (not behind the camera anymore), we can draw them
+
+                draw_triangle(frame, z_buffer, texture, goodVertices, goodUV, minX, maxX, minY, maxY, np.asarray([0.0,0.0]), z0, z1, z2)
+            elif (len(problemVertices) == 1):
+                # here only one vertex is an issue
+                # the procedure is similar, but we end up with two triangles
+
+                # here is our triangle as-is
+                p1 = np.asarray([goodVertices[0][3],goodVertices[0][4],goodVertices[0][5]])
+                p2 = np.asarray([goodVertices[1][3],goodVertices[1][4],goodVertices[1][5]])
+                p3 = np.asarray([problemVertices[0][3],problemVertices[0][4],problemVertices[0][5]])
+
+                parameter = (0.01 - p3[2]) / (p1[2] - p3[2])
+                intersect1 = add_3d(p3, np.asarray([(p1[0]-p3[0]) * parameter,(p1[1]-p3[1]) * parameter,(p1[2]-p3[2]) * parameter]))
+                goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
+                goodUV.append(np.asarray([problemUV[0][0] + (goodUV[0][0] - problemUV[0][0]) * parameter, problemUV[0][1] + (goodUV[0][1] - problemUV[0][1]) * parameter]))
+
+                parameter = (0.01 - p3[2]) / (p2[2] - p3[2])
+                intersect1 = add_3d(p3, np.asarray([(p2[0]-p3[0]) * parameter,(p2[1]-p3[1]) * parameter,(p2[2]-p3[2]) * parameter]))
+                goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
+                goodUV.append(np.asarray([problemUV[0][0] + (goodUV[1][0] - problemUV[0][0]) * parameter, problemUV[0][1] + (goodUV[1][1] - problemUV[0][1]) * parameter]))
+
+                # gotta project those points
+                hor_fov_adjust = 0.5*screenWidth/ np.tan(horizontalFOV * 0.5) 
+                ver_fov_adjust = 0.5*screenHeight/ np.tan(verticalFOV * 0.5)
+
+                goodVertices[2][6] = (-hor_fov_adjust*goodVertices[2][3]/np.abs(goodVertices[2][5]) + 0.5*screenWidth).astype(np.int32)
+                goodVertices[2][7] = (-ver_fov_adjust*goodVertices[2][4]/np.abs(goodVertices[2][5]) + 0.5*screenHeight).astype(np.int32)
+                goodVertices[2][8] = goodVertices[2][5] 
+
+                goodVertices[3][6] = (-hor_fov_adjust*goodVertices[3][3]/np.abs(goodVertices[3][5]) + 0.5*screenWidth).astype(np.int32)
+                goodVertices[3][7] = (-ver_fov_adjust*goodVertices[3][4]/np.abs(goodVertices[3][5]) + 0.5*screenHeight).astype(np.int32)
+                goodVertices[3][8] = goodVertices[3][5] 
+
+                # this is where we have to turn our array of four points into two triangles
+
+                good1 = np.asarray([goodVertices[0],goodVertices[1],goodVertices[2]])
+                good2 = np.asarray([goodVertices[1],goodVertices[3],goodVertices[2]])
+
+                # the bounding box that the triangle occupies
+                minX1 = np.min([good1[0][6],good1[1][6],good1[2][6]])
+                maxX1 = np.max([good1[0][6],good1[1][6],good1[2][6]])
+
+                minY1 = np.min([good1[0][7],good1[1][7],good1[2][7]])
+                maxY1 = np.max([good1[0][7],good1[1][7],good1[2][7]])
+
+                minX2 = np.min([good2[0][6],good2[1][6],good2[2][6]])
+                maxX2 = np.max([good2[0][6],good2[1][6],good2[2][6]])
+
+                minY2 = np.min([good2[0][7],good2[1][7],good2[2][7]])
+                maxY2 = np.max([good2[0][7],good2[1][7],good2[2][7]])
+
+                # new z values!
+                z01 = 1 / good1[0][8]
+                z11 = 1 / good1[1][8]
+                z21 = 1 / good1[2][8]
+
+                z02 = 1 / good2[0][8]
+                z12 = 1 / good2[1][8]
+                z22 = 1 / good2[2][8]
+
+                uv1 = np.asarray([goodUV[0] * z01,goodUV[1] * z11,goodUV[2] * z21])
+                uv2 = np.asarray([goodUV[1] * z02,goodUV[3] * z12,goodUV[2] * z22])
+
+                draw_triangle(frame, z_buffer, texture, good1, uv1, minX1, maxX1, minY1, maxY1, np.asarray([0.0,0.0]), z01, z11, z21)
+                draw_triangle(frame, z_buffer, texture, good2, uv2, minX2, maxX2, minY2, maxY2, np.asarray([0.0,0.0]), z02, z12, z22)
+
+
+        #  we do nothing if the triangle is all behind (state == 1), we just skip those
+
+
+@njit
+def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2):
+    global screenWidth
+    global screenHeight
+
+    # barycentric denominator, based on https://codeplea.com/triangular-interpolation
+    # this will come into play when calculating the texture coordinates, and depth at the current pixel
+    denominator = ((proj_points[1][7] - proj_points[2][7])*(proj_points[0][6] - proj_points[2][6]) +
+    (proj_points[2][6] - proj_points[1][6])*(proj_points[0][7] - proj_points[2][7]) + 1e-32)
+    
+    # looping through every pixel in the bounding box that the triangle represents
+    # we limit this box to the edges of the screen, because we don't care about anything else
+
+    # because of these restrictions we don't need any further checks for making sure the x and y are valid
+    for y in range(max(minY, 0), min(maxY, screenHeight)):
+        for x in range(max(minX, 0), min(maxX, screenWidth)):
+
+            # barycentric weights
+            w0 = ((proj_points[1][7]-proj_points[2][7])*(x - proj_points[2][6]) + (proj_points[2][6]-proj_points[1][6])*(y - proj_points[2][7]))/denominator
+            w1 = ((proj_points[2][7]-proj_points[0][7])*(x - proj_points[2][6]) + (proj_points[0][6]-proj_points[2][6])*(y - proj_points[2][7]))/denominator
+            w2 = 1 - w0 - w1
+
+            # if any weight is negative, we're outside the triangle and so we won't do anything
+            if (w0 < 0 or w1 < 0 or w2 < 0):
+                continue
+
+            # sinze z0,z1, and z2 are all 1/z at some point, this value will also be 1 / z
+            z = w0*z0 + w1*z1 + w2*z2
+            u = ((w0*uv_points[0][0] + w1*uv_points[1][0] + w2*uv_points[2][0])*(1/z + 0.0001))
+            v = ((w0*uv_points[0][1] + w1*uv_points[1][1] + w2*uv_points[2][1])*(1/z + 0.0001))
+
+            # z needs to be greater than the value at the z buffer, meaning 1 / z needs to be less
+            # also make sure the u and v coords are valid, they need to be [0..1]
+            if z > z_buffer[x, y] and min(u,v) >= 0 and max(u,v) < 1:
+                # z buffer stores values of 1 / z
+                z_buffer[x, y] = z
+
+                # showing the u and v coords as a color, not the actual texture just yet
+                frame[x, y] = np.asarray([u*255,v*255,0]).astype('uint8')
+
+                #frame[x, y] = shade*texture[int(u*text_size[0])][int(v*text_size[1])]
+
+@njit
+def clamp(val, lower, upper):
+    return min(max(val, lower), upper)
+
+@njit()
+def get_slopes(startX, middleX, stopX, startY, middleY, stopY):
+    slope_1 = (stopX - startX)/(stopY - startY + 1e-32) # + 1e-32 avoid zero division ¯\_(ツ)_/¯
+    slope_2 = (middleX - startX)/(middleY - startY + 1e-32)
+    slope_3 = (stopX - middleX)/(stopY - middleY + 1e-32)
+
+    return np.asarray([slope_1, slope_2, slope_3]) 
+
+def average_point_3d(list):
+    toReturn = np.asarray([0.0,0.0,0.0])
+    for i in list:
+        toReturn[0] += i[3] / len(list)
+        toReturn[1] += i[4] / len(list)
+        toReturn[2] += i[5] / len(list)
+
+    return toReturn
+
+# ********  2D vector helpers:  ********  
+
+@njit()
+def dot_2d(arr1, arr2): 
+    return arr1[0]*arr2[0] + arr1[1]*arr2[1]
+
+# linearly interpolate from one point to another, using parameter t
+def lerp_2d(a, b, t):
+    return np.asarray([a[0] + (b[0]-a[0]) * t, a[1] + (b[1]-a[1]) * t])
+
+# add b to a
+def add_2d(a, b):
+    return np.asarray([a[0] + b[0],a[1] + b[1]])
+
+# subtract b from a 
+def subtract_2d(a, b):
+    return np.asarray([a[0] - b[0], a[1] - b[1]])
+
+# length of a vector, using pythagorean theorem
+def length_2d(a):
+    return np.sqrt(a[0] * a[0] + a[1] * a[1])
+
+# takes in a vector, outputs that vector as a unit vector
+def normalize_2d(a):
+    l = length_2d(a)
+
+    return np.asarray([a[0]/l,a[1]/l])
+
+# ********  3D vector helpers:       ********
+
+@njit()
+def dot_3d(arr1, arr2): 
+    return arr1[0]*arr2[0] + arr1[1]*arr2[1] + arr1[2]*arr2[2]
+
+# interpolation for direction
+# not sure if this is how slerp is supposed to be done but ah well
+def slerp_3d(a,b,t):
+    rotationAxis = normalize_3d(cross_3d(a,b))
+    rotationAngle = angle_3d(a,b)
+
+    return rotate_vector_3d(a,rotationAxis, rotationAngle * t)
+
+# linearly interpolate from one point to another, using parameter t
+def lerp_3d(a, b, t):
+    return np.asarray([a[0] + (b[0]-a[0]) * t, a[1] + (b[1]-a[1]) * t, a[2] + (b[2]-a[2]) * t])
+
+# add b to a
+def add_3d(a, b):
+    return np.asarray([a[0] + b[0],a[1] + b[1], a[2] + b[2]])
+
+# subtract b from a 
+def subtract_3d(a, b):
+    return np.asarray([a[0] - b[0], a[1] - b[1], a[2] - b[2]])
+
+# length of a vector, using pythagorean theorem
+def length_3d(a):
+    return np.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2])
+
+# local vectors of the camera (forward, up, right)
+# the forward and up vectors are defined in the camera, 
+# the right vector is calculated as a cross product between the two
+def camera_forward(camera):
+    return np.asarray([camera[3],camera[4],camera[5]])
+def camera_up(camera):
+    return np.asarray([camera[6],camera[7],camera[8]])
+def camera_right(camera):
+    crossProduct = normalize_3d(cross_3d(camera_forward(camera), camera_up(camera)))
+    return np.asarray([-crossProduct[0],-crossProduct[1],-crossProduct[2]])
+
+# calculate the angle in RADIANS between two vectors
+def angle_3d(a, b):
+    dp = dot_3d(a,b)
+    la = length_3d(a)
+    lb = length_3d(b)
+
+    return np.acos((dp) / (la * lb))
+
+# calculate the cross product between two vectors
+# (there is no cross in 2d)
+def cross_3d(a,b):
+    return np.asarray([a[1]*b[2] - a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]])
+
+# takes in a vector, outputs that vector as a unit vector
+def normalize_3d(a):
+    l = length_3d(a)
+
+    return np.asarray([a[0]/l,a[1]/l,a[2]/l])
+
+# rotate a vector (x,y,z) around another vector, by an angle
+@njit
+def rotate_vector_3d(vector, axis, angle):
+    # rotate around x axis
+    i = np.asarray([0.0,0.0,0.0])
+    i[0] = vector[0] * (     (axis[0] * axis[0]) * (1 - np.cos(angle)) + np.cos(angle)                  ) + vector[1] * (        (axis[1] * axis[0]) * (1 - np.cos(angle)) - (axis[2] * np.sin(angle))         ) + vector[2] * (        (axis[0] * axis[2]) * (1 - np.cos(angle)) + (axis[1] * np.sin(angle))     )
+    i[1] = vector[0] * (     (axis[0] * axis[1]) * (1 - np.cos(angle)) + (axis[2] * np.sin(angle))     ) + vector[1] * (        (axis[1] * axis[1]) * (1 - np.cos(angle)) + np.cos(angle)                      ) + vector[2] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) - (axis[0] * np.sin(angle))     )
+    i[2] = vector[0] * (     (axis[0] * axis[2]) * (1 - np.cos(angle)) - (axis[1] * np.sin(angle))     ) + vector[1] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) + (axis[0] * np.sin(angle))         ) + vector[2] * (        (axis[2] * axis[2]) * (1 - np.cos(angle)) + np.cos(angle)                  )
+    
+    return i   
+# rotate the camera by an axis and angle
+# re-defines the forward and up vectors, basically
+def rotate_camera(camera,axis,angle):
+    up = camera_up(camera)
+    forward = camera_forward(camera)
+
+    # new local vectors
+    upNew = rotate_vector_3d(up,axis,angle)
+    forwardNew = rotate_vector_3d(forward,axis,angle)
+
+    # assinging the camera vectors
+    camera[3] = forwardNew[0]
+    camera[4] = forwardNew[1]
+    camera[5] = forwardNew[2]
+
+    camera[6] = upNew[0]
+    camera[7] = upNew[1]
+    camera[8] = upNew[2]
+
+# ********  string helpers:       ********
+
+def getFirstIndex(string, char):
+    
+    for i in range(len(string)):
+        if (string[i] == char):
+            return i
+    
+    return len(string)
+
+# ********  MESH helpers:       ********
+
+def read_obj(fileName):
+    '''
+    Read wavefront models with or without textures, supports triangles and quads (turned into triangles)
+    '''
+    vertices, triangles, texture_uv, texture_map = [], [], [], []
+
+    with open(fileName) as f:
+        for line in f.readlines():
+
+            splitted = line.split() # split the line in a list
+
+            if len(splitted) == 0: # skip empty lines
+                continue
+
+            if splitted[0] == "v": # vertices
+                vertices.append(splitted[1:4] + [1,1,1] + [1,1,1]) # aditional spaces for transformation, and projection
+
+            elif splitted[0] == "vt": # texture coordinates
+                texture_uv.append(splitted[1:3])
+
+            elif splitted[0] == "f": # Faces
+
+                if len(splitted[1].split("/")) == 1: # no textures
+                    triangles.append([splitted[1], splitted[2], splitted[3]])
+
+                    if len(splitted) > 4: # quads, make additional triangle
+                        triangles.append([splitted[1], splitted[3], splitted[4]])
+
+                else: # with textures
+                    p1 = splitted[1].split("/")
+                    p2 = splitted[2].split("/")
+                    p3 = splitted[3].split("/")
+                    triangles.append([p1[0], p2[0], p3[0]])
+                    texture_map.append([p1[1], p2[1], p3[1]])
+                    
+                    if len(splitted) > 4: # quads, make additional triangle
+                        p4 = splitted[4].split("/")
+                        triangles.append([p1[0], p3[0], p4[0]])
+                        texture_map.append([p1[1], p3[1], p4[1]])
+                
+    vertices = np.asarray(vertices).astype(float)
+    triangles = np.asarray(triangles).astype(int) - 1 # adjust indexes to start with 0
+
+    texture_uv = np.asarray(texture_uv).astype(float)
+    texture_uv[:,1] = 1 - texture_uv[:,1] # apparently obj textures are upside down
+    texture_map = np.asarray(texture_map).astype(int) - 1 # adjust indexes to start with 0
+    
+    return vertices, triangles, texture_uv, texture_map
 
 class Model:
     _registry = []
@@ -266,12 +875,12 @@ class Model:
         self.scale = np.asarray([1.0,1.0,1.0])
 
         self._registry.append(self)
-        self.points, self.triangles, self.texture_uv, self.texture_map, self.textured =  read_obj(path_obj)
-        if self.textured:
-            self.texture = pg.surfarray.array3d(pg.image.load(path_texture))
-        else:
-            self.texture_uv, self.texture_map = np.ones((2,2)), np.random.randint(1, 2, (2,3))
-            self.texture = np.random.randint(0, 255, (10, 10,3))
+        # points are stored using nine numbers
+        # the first three is the point as it appears in the mesh file
+        # the next three is the point as it appears in the scene, RELATIVE TO THE CAMERA
+        # the final three is the point as it appears projected onto the screen
+        self.points, self.triangles, self.texture_uv, self.texture_map =  read_obj(path_obj)
+        self.texture = pg.surfarray.array3d(pg.image.load(path_texture))
 
     # whether the tags array has a given tag
     def hasTag(self, tag):
@@ -319,16 +928,16 @@ class Model:
         self.up[2] = newUp[2]
 
     def set_forward(self, v):
-        appliedRotationAxis = normalize_vector(cross_vector(self.forward, v))
-        appliedRotationAngle = angle_vector_3d(self.forward, v)
+        appliedRotationAxis = normalize_3d(cross_3d(self.forward, v))
+        appliedRotationAngle = angle_3d(self.forward, v)
 
         if (appliedRotationAngle > 0.001 and appliedRotationAngle < np.pi - 0.001):
             self.forward = rotate_vector_3d(self.forward, appliedRotationAxis, appliedRotationAngle)
             self.up = rotate_vector_3d(self.up, appliedRotationAxis, appliedRotationAngle)
 
     def set_up(self, v):
-        appliedRotationAxis = cross_vector(self.up, v)
-        appliedRotationAngle = angle_vector_3d(self.up, v)
+        appliedRotationAxis = cross_3d(self.up, v)
+        appliedRotationAngle = angle_3d(self.up, v)
 
         self.forward = rotate_vector_3d(self.forward, appliedRotationAxis, appliedRotationAngle)
         self.up = rotate_vector_3d(self.up, appliedRotationAxis, appliedRotationAngle)
@@ -346,11 +955,11 @@ class Model:
         point[5] = point[2] * self.scale[2]
 
         # then rotation
-        forwardRotationAxis = normalize_vector(cross_vector(np.asarray([0.0,0.0,1.0]), self.forward))
-        forwardRotationAngle = angle_vector_3d(np.asarray([0.0,0.0,1.0]), self.forward)
+        forwardRotationAxis = normalize_3d(cross_3d(np.asarray([0.0,0.0,1.0]), self.forward))
+        forwardRotationAngle = angle_3d(np.asarray([0.0,0.0,1.0]), self.forward)
         rotatedUpAxis = rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
-        upRotationAxis = normalize_vector(cross_vector(rotatedUpAxis, self.up))
-        upRotationAngle = angle_vector_3d(rotatedUpAxis, self.up)
+        upRotationAxis = normalize_3d(cross_3d(rotatedUpAxis, self.up))
+        upRotationAngle = angle_3d(rotatedUpAxis, self.up)
         rotatedPoint = point
         if forwardRotationAngle > 0:
             rotatedPoint = rotate_point_3d(point, forwardRotationAxis, forwardRotationAngle)
@@ -366,374 +975,3 @@ class Model:
         point[5] += self.position[2]
 
         return point
-
-# draw a rectangle on the screen
-def draw_rect(frameArray, xPos, yPos, xSize, ySize, color):
-    global screenWidth
-    global screenHeight
-
-    minX = int(xPos-xSize/2)
-    maxX = int(xPos+xSize/2)
-
-    minY = int(yPos-ySize/2)
-    maxY = int(yPos+ySize/2)
-    
-    for x in range(max(0,minX),min(screenWidth-1,maxX)):
-        for y in range(max(0,minY),min(screenHeight-1,maxY)):
-            frameArray[x,y] = color.astype('uint8')
-
-    return frameArray
-
-# draw a circle on the screen
-def draw_circle(frameArray, xPos, yPos, radius, color):
-    global screenWidth
-    global screenHeight
-
-    minX = int(xPos - radius)
-    maxX = int(xPos + radius)
-
-    minY = int(yPos - radius)
-    maxY = int(yPos + radius)
-    
-    for x in range(max(0,minX),min(screenWidth-1,maxX)):
-        for y in range(max(0,minY),min(screenHeight-1,maxY)):
-            if ((x - xPos) * (x - xPos) + (y - yPos) * (y - yPos) < radius * radius):
-                frameArray[x,y] = color.astype('uint8')
-
-    return frameArray
-
-# rotate a vector (x,y,z) around another vector, by an angle
-@njit
-def rotate_vector_3d(vector, axis, angle):
-    # rotate around x axis
-    i = np.asarray([0.0,0.0,0.0])
-    i[0] = vector[0] * (     (axis[0] * axis[0]) * (1 - np.cos(angle)) + np.cos(angle)                  ) + vector[1] * (        (axis[1] * axis[0]) * (1 - np.cos(angle)) - (axis[2] * np.sin(angle))         ) + vector[2] * (        (axis[0] * axis[2]) * (1 - np.cos(angle)) + (axis[1] * np.sin(angle))     )
-    i[1] = vector[0] * (     (axis[0] * axis[1]) * (1 - np.cos(angle)) + (axis[2] * np.sin(angle))     ) + vector[1] * (        (axis[1] * axis[1]) * (1 - np.cos(angle)) + np.cos(angle)                      ) + vector[2] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) - (axis[0] * np.sin(angle))     )
-    i[2] = vector[0] * (     (axis[0] * axis[2]) * (1 - np.cos(angle)) - (axis[1] * np.sin(angle))     ) + vector[1] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) + (axis[0] * np.sin(angle))         ) + vector[2] * (        (axis[2] * axis[2]) * (1 - np.cos(angle)) + np.cos(angle)                  )
-    
-    return i   
-
-# rotate a vector (x,y,z) around another vector, by an angle
-@njit
-def rotate_point_3d(vector, axis, angle):
-    # rotate around x axis
-    i = np.asarray([0.0,0.0,0.0,0.0,0.0,0.0])
-    i[3] = vector[3] * (     (axis[0] * axis[0]) * (1 - np.cos(angle)) + np.cos(angle)                  ) + vector[4] * (        (axis[1] * axis[0]) * (1 - np.cos(angle)) - (axis[2] * np.sin(angle))         ) + vector[5] * (        (axis[0] * axis[2]) * (1 - np.cos(angle)) + (axis[1] * np.sin(angle))     )
-    i[4] = vector[3] * (     (axis[0] * axis[1]) * (1 - np.cos(angle)) + (axis[2] * np.sin(angle))     ) + vector[4] * (        (axis[1] * axis[1]) * (1 - np.cos(angle)) + np.cos(angle)                      ) + vector[5] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) - (axis[0] * np.sin(angle))     )
-    i[5] = vector[3] * (     (axis[0] * axis[2]) * (1 - np.cos(angle)) - (axis[1] * np.sin(angle))     ) + vector[4] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) + (axis[0] * np.sin(angle))         ) + vector[5] * (        (axis[2] * axis[2]) * (1 - np.cos(angle)) + np.cos(angle)                  )
-    
-    return i   
-
-def project_points(mesh, points, camera):
-    global screenWidth
-    global screenHeight
-
-    global horizontalFOV
-    global verticalFOV
-
-    hor_fov_adjust = 0.5*screenWidth/ np.tan(horizontalFOV * 0.5) 
-    ver_fov_adjust = 0.5*screenHeight/ np.tan(verticalFOV * 0.5)
-
-    # go through the points and apply the mesh's transforms
-    for i in points:
-        j = mesh.transform_point(i)
-
-        i[3] = j[3]
-        i[4] = j[4]
-        i[5] = j[5]
-
-    # translate to have camera as origin
-    points[:,3] -= camera[0]
-    points[:,4] -= camera[1]
-    points[:,5] -= camera[2]
-
-    camZ = camera_forward(camera)
-    forwardVectorAxis = normalize_vector(cross_vector(camZ,np.asarray([0.0,0.0,1.0])))
-    forwardVectorAngle = angle_vector_3d(np.asarray([0.0,0.0,1.0]),camZ)
-
-    if (forwardVectorAngle > 0):
-        for i in points:
-            j = rotate_point_3d(i, forwardVectorAxis, forwardVectorAngle)
-            i[3] = j[3]
-            i[4] = j[4]
-            i[5] = j[5]
-
-    upVectorAxis = normalize_vector(cross_vector(rotate_vector_3d(camera_up(camera),forwardVectorAxis,forwardVectorAngle),np.asarray([0.0,1.0,0.0])))
-    upVectorAngle = angle_vector_3d(np.asarray([0.0,1.0,0.0]), rotate_vector_3d(camera_up(camera),forwardVectorAxis,forwardVectorAngle))
-
-    if (upVectorAngle > 0):
-        for i in points:
-            j = rotate_point_3d(i, upVectorAxis, upVectorAngle)
-            i[3] = j[3]
-            i[4] = j[4]
-            i[5] = j[5]
-
-    # jump over 0 to avoid zero division ¯\_(ツ)_/¯
-    points[:,5][(points[:,5] < 0.001) & (points[:,5] > -0.001)] = -0.001 
-    points[:,3] = (-hor_fov_adjust*points[:,3]/points[:,5] + 0.5*screenWidth).astype(np.int32)
-    points[:,4] = (-ver_fov_adjust*points[:,4]/points[:,5] + 0.5*screenHeight).astype(np.int32)
-
-
-@njit()
-def dot_3d(arr1, arr2): 
-    return arr1[0]*arr2[0] + arr1[1]*arr2[1] + arr1[2]*arr2[2]
-
-def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, textured, texture_uv, texture_map, texture):
-    global screenWidth
-    global screenHeight
-
-    points2 = points.copy()
-
-    # make the points correct
-    for i in points2:
-        k = np.asarray([0.0,0.0,0.0,0.0,0.0,0.0])
-        k[0] = i[0]
-        k[1] = i[1]
-        k[2] = i[2]
-        j = mesh.transform_point(k)
-        i[0] = j[3]
-        i[1] = j[4]
-        i[2] = j[5]
-
-    text_size = [len(texture)-1, len(texture[0])-1]
-    color_scale = 230/np.max(np.abs(points2[:,:3]))
-    for index in range(1):
-        
-        triangle = triangles[index]
-
-        # Use Cross-Product to get surface normal
-        vet1 = points2[triangle[1]][:3]  - points2[triangle[0]][:3]
-        vet2 = points2[triangle[2]][:3] - points2[triangle[0]][:3]
-
-        # backface culling with dot product between normal and camera ray
-        normal = np.cross(vet1, vet2)
-        normal = normal/np.sqrt(normal[0]*normal[0] + normal[1]*normal[1] + normal[2]*normal[2])
-
-        max_z = max([points2[triangle[0]][5], points2[triangle[1]][5], points2[triangle[2]][5]])
-
-        if (max_z > 0):
-            shade = 0.5*dot_3d(light_dir, normal) + 0.5 #  directional lighting
-
-            proj_points = points2[triangle][:,3:]
-            sorted_y = proj_points[:,1].argsort()
-
-            start = proj_points[sorted_y[0]]
-            middle = proj_points[sorted_y[1]]
-            stop = proj_points[sorted_y[2]]
-
-            x_slopes = get_slopes(start[0], middle[0], stop[0], start[1], middle[1], stop[1])
-
-            # if textured:
-            #     z0, z1, z2 = 1/proj_points[0][2], 1/proj_points[1][2], 1/proj_points[2][2]
-            #     uv_points = texture_uv[texture_map[index]]
-            #     uv_points[0], uv_points[1], uv_points[2] = uv_points[0]*z0, uv_points[1]*z1, uv_points[2]*z2
-            #     draw_text_triangles(frame, z_buffer, texture, proj_points, start, middle, stop, uv_points, x_slopes, shade, text_size, z0, z1, z2)
-
-            # else:
-            #     color = shade*np.abs(points2[triangles[index][0]][:3])*color_scale + 25
-            #     start[2], middle[2], stop[2] = 1/start[2], 1/middle[2], 1/stop[2]
-            #     z_slopes = get_slopes(start[2], middle[2], stop[2], start[1], middle[1], stop[1])
-            #     draw_flat_triangle(frame, z_buffer, color, start, middle, stop, x_slopes, z_slopes)
-
-            color = shade*np.abs(points2[triangles[index][0]][:3])*color_scale + 25
-            start[2], middle[2], stop[2] = 1/start[2], 1/middle[2], 1/stop[2]
-            z_slopes = get_slopes(start[2], middle[2], stop[2], start[1], middle[1], stop[1])
-            draw_flat_triangle(frame, z_buffer, color, start, middle, stop, x_slopes, z_slopes)
-
-@njit()
-def rotate(point, rot):
-    return np.asarray([point[0],point[1] + rot])
-
-@njit()
-def draw_text_triangles(frame, z_buffer, texture, proj_points, start, middle, stop, uv_points, x_slopes, shade, text_size, z0, z1, z2):
-    global screenWidth
-    global screenHeight
-
-    # barycentric denominator, based on https://codeplea.com/triangular-interpolation
-    denominator = ((proj_points[1][1] - proj_points[2][1])*(proj_points[0][0] - proj_points[2][0]) +
-                    (proj_points[2][0] - proj_points[1][0])*(proj_points[0][1] - proj_points[2][1]) + 1e-32)
-    
-    for y in range(max(0, start[1]), min(screenHeight, stop[1]+1)):
-        x1 = start[0] + int((y-start[1])*x_slopes[0])
-        if y < middle[1]:
-            x2 = start[0] + int((y-start[1])*x_slopes[1])
-        else:
-            x2 = middle[0] + int((y-middle[1])*x_slopes[2])
-        minx, maxx = max(0, min(x1, x2, screenWidth)), min(screenWidth, max(0, x1+1, x2+1))
-        
-        for x in range(minx, maxx):
-            # barycentric weights
-            w0 = ((proj_points[1][1]-proj_points[2][1])*(x - proj_points[2][0]) + (proj_points[2][0]-proj_points[1][0])*(y - proj_points[2][1]))/denominator
-            w1 = ((proj_points[2][1]-proj_points[0][1])*(x - proj_points[2][0]) + (proj_points[0][0]-proj_points[2][0])*(y - proj_points[2][1]))/denominator
-            w2 = 1 - w0 - w1
-
-            z = 1/(w0*z0 + w1*z1 + w2*z2)
-            u = ((w0*uv_points[0][0] + w1*uv_points[1][0] + w2*uv_points[2][0])*z)
-            v = ((w0*uv_points[0][1] + w1*uv_points[1][1] + w2*uv_points[2][1])*z)
-
-            if z < z_buffer[x, y] and min(u,v) >= 0 and max(u,v) < 1:
-                z_buffer[x, y] = z
-                #frame[x, y] = shade*texture[int(u*text_size[0])][int(v*text_size[1])]
-                frame[x, y] = np.asarray([u * 255,v * 255,0]).astype('uint8')
-
-@njit()
-def draw_flat_triangle(frame, z_buffer, color, start, middle, stop, x_slopes, z_slopes):
-    global screenWidth
-    global screenHeight
-
-    for y in range(max(0, int(start[1])), min(screenHeight, int(stop[1]+1))):
-        delta_y = y - start[1]
-        x1 = start[0] + int(delta_y*x_slopes[0])
-        z1 = start[2] + delta_y*z_slopes[0]
-
-        if y < middle[1]:
-            x2 = start[0] + int(delta_y*x_slopes[1])
-            z2 = start[2] + delta_y*z_slopes[1]
-
-        else:
-            delta_y = y - middle[1]
-            x2 = middle[0] + int(delta_y*x_slopes[2])
-            z2 = middle[2] + delta_y*z_slopes[2]
-        
-        if x1 > x2: # lower x should be on the left
-            x1, x2 = x2, x1
-            z1, z2 = z2, z1
-
-        xx1, xx2 = max(0, min(screenWidth, int(x1))), max(0, min(screenWidth, int(x2+1)))
-        if xx1 != xx2:
-            z_slope = (z2 - z1)/(x2 - x1 + 1e-32)
-            if min(z_buffer[xx1:xx2, y]) == 1e32: # check z buffer, fresh pixels
-                z_buffer[xx1:xx2, y] = 1/((np.arange(xx1, xx2)-x1)*z_slope + z1)
-                frame[xx1:xx2, y] = color
-
-            else:
-                for x in range(xx1, xx2):
-                    z = 1/(z1 + (x - x1)*z_slope + 1e-32) # retrive z
-                    if z < z_buffer[x][y]: # check z buffer
-                        z_buffer[x][y] = z
-                        frame[x, y] = color
-
-@njit()
-def get_slopes(num_start, num_middle, num_stop, den_start, den_middle, den_stop):
-    slope_1 = (num_stop - num_start)/(den_stop - den_start + 1e-32) # + 1e-32 avoid zero division ¯\_(ツ)_/¯
-    slope_2 = (num_middle - num_start)/(den_middle - den_start + 1e-32)
-    slope_3 = (num_stop - num_middle)/(den_stop - den_middle + 1e-32)
-
-    return np.asarray([slope_1, slope_2, slope_3]) 
-
-# interpolation for direction
-# not sure if this is how slerp is supposed to be done but ah well
-def slerp_vector_3d(a,b,t):
-    rotationAxis = normalize_vector(cross_vector(a,b))
-    rotationAngle = angle_vector_3d(a,b)
-
-    return rotate_vector_3d(a,rotationAxis, rotationAngle * t)
-
-# linearly interpolate from one point to another, using parameter t
-def lerp_vector_2d(a, b, t):
-    return np.asarray([a[0] + (b[0]-a[0]) * t, a[1] + (b[1]-a[1]) * t])
-
-def add_vector_2d(a, b):
-    return np.asarray([a[0] + b[0],a[1] + b[1]])
-
-def subtract_vector_2d(a, b):
-    return np.asarray([a[0] - b[0], a[1] - b[1]])
-
-# local vectors of the camera
-def camera_forward(camera):
-    return np.asarray([camera[3],camera[4],camera[5]])
-def camera_up(camera):
-    return np.asarray([camera[6],camera[7],camera[8]])
-def camera_right(camera):
-    crossProduct = normalize_vector(cross_vector(camera_forward(camera), camera_up(camera)))
-    return np.asarray([-crossProduct[0],-crossProduct[1],-crossProduct[2]])
-
-def length_vector(a):
-    return np.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2])
-
-def angle_vector_3d(a, b):
-    dp = dot_3d(a,b)
-    la = length_vector(a)
-    lb = length_vector(b)
-
-    return np.acos((dp) / (la * lb))
-
-def cross_vector(a,b):
-    return np.asarray([a[1]*b[2] - a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]])
-
-def normalize_vector(a):
-    l = length_vector(a)
-
-    return np.asarray([a[0]/l,a[1]/l,a[2]/l])
-
-def rotate_camera(camera,axis,angle):
-    up = camera_up(camera)
-    forward = camera_forward(camera)
-
-    # new local vectors
-    upNew = rotate_vector_3d(up,axis,angle)
-    forwardNew = rotate_vector_3d(forward,axis,angle)
-
-    # assinging the camera vectors
-    camera[3] = forwardNew[0]
-    camera[4] = forwardNew[1]
-    camera[5] = forwardNew[2]
-
-    camera[6] = upNew[0]
-    camera[7] = upNew[1]
-    camera[8] = upNew[2]
-
-def read_obj(fileName):
-    '''
-    Read wavefront models with or without textures, supports triangles and quads (turned into triangles)
-    '''
-    vertices, triangles, texture_uv, texture_map = [], [], [], []
-
-    with open(fileName) as f:
-        for line in f.readlines():
-
-            splitted = line.split() # split the line in a list
-
-            if len(splitted) == 0: # skip empty lines
-                continue
-
-            if splitted[0] == "v": # vertices
-                vertices.append(splitted[1:4] + [1,1,1]) # aditional spaces for projection
-
-            elif splitted[0] == "vt": # texture coordinates
-                texture_uv.append(splitted[1:3])
-
-            elif splitted[0] == "f": # Faces
-
-                if len(splitted[1].split("/")) == 1: # no textures
-                    triangles.append([splitted[1], splitted[2], splitted[3]])
-
-                    if len(splitted) > 4: # quads, make additional triangle
-                        triangles.append([splitted[1], splitted[3], splitted[4]])
-
-                else: # with textures
-                    p1 = splitted[1].split("/")
-                    p2 = splitted[2].split("/")
-                    p3 = splitted[3].split("/")
-                    triangles.append([p1[0], p2[0], p3[0]])
-                    texture_map.append([p1[1], p2[1], p3[1]])
-                    
-                    if len(splitted) > 4: # quads, make additional triangle
-                        p4 = splitted[4].split("/")
-                        triangles.append([p1[0], p3[0], p4[0]])
-                        texture_map.append([p1[1], p3[1], p4[1]])
-                
-    vertices = np.asarray(vertices).astype(float)
-    triangles = np.asarray(triangles).astype(int) - 1 # adjust indexes to start with 0
-
-    if len(texture_uv) > 0 and len(texture_map) > 0:
-        textured = True
-        texture_uv = np.asarray(texture_uv).astype(float)
-        texture_uv[:,1] = 1 - texture_uv[:,1] # apparently obj textures are upside down
-        texture_map = np.asarray(texture_map).astype(int) - 1 # adjust indexes to start with 0
-        
-    else:
-        texture_uv, texture_map = np.asarray(texture_uv), np.asarray(texture_map)
-        textured = False 
-    
-    return vertices, triangles, texture_uv, texture_map, textured

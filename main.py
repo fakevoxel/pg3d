@@ -2,16 +2,17 @@ import pg3d as engine
 import numpy as np
 import pygame as pg
 
+# where the actual game-code is located
+
 def main():
     # start the engine
-    engine.init(400,300,np.pi / 4)
+    engine.init(800,600,np.pi / 4)
     # set the background color to blue
     engine.setBackGroundColor(0,0,255)
 
-    engine.spawnObject('assets/cube.obj','assets/grid_16.png',"ground", 0.0,0.0,0.0, ["collider"])
-    #engine.getObject("ground").set_scale(5.0,0.1,5.0)
-
-    #engine.spawnObject('assets/cube.obj','assets/grid_16.png',"test cube", 0.0,4.0,0.0, ["physics","collider"])
+    # spawn a cube as a test
+    engine.spawnObject('assets/cube.obj','assets/grid_16.png',"cube", 0.0,0.0,0.0, [])
+    engine.getObject("cube").set_scale(10,0.1,10)
 
     running = True
     while running:
