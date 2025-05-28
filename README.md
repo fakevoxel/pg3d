@@ -35,4 +35,5 @@ This is my implementation of a 3D rendering engine in python, using PyGame and N
 
 # Gallery:
 
-images of the engine in action will be posted here
+![alt text](https://github.com/fakevoxel/pg3d/blob/master/images/sc_1.png?)
+![alt text](https://github.com/fakevoxel/pg3d/blob/master/images/sc_2.png?)
