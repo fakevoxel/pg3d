@@ -14,12 +14,16 @@ def main():
     # might disable this later
     engine.disableBackfaceCulling()
 
-    engine.spawnObjectWithTexture('3d models/platform.obj','3d models/platform_texture.png',"platform", 0.0,0.0,0.0, ["box_collider"], Color.orange)
-    engine.getObject("platform").add_data("collider_bounds",np.asarray([10.0,1.0,10.0]))
-    engine.getObject("platform").set_scale(5.0,1.0,5.0)
+    # spawning a row of platforms
+    platformCount = 5
+    for i in range(platformCount):
+        engine.spawnObjectWithTexture('3d models/platform.obj','3d models/platform_texture.png',"platform" + str(i+1), 0.0 + i * 15,0.0,0.0, ["box_collider"], Color.green)
+        engine.getObject("platform" + str(i+1)).add_data("collider_bounds",np.asarray([10.0,1.0,10.0]))
+        engine.getObject("platform" + str(i+1)).set_scale(5.0,1.0,5.0)
 
     engine.spawnCube(0.0, 5.0, 0.0, ["physics","box_collider"])
     engine.getObject("cube").add_data("collider_bounds",np.asarray([2.0,2.0,2.0]))
+    engine.getObject("cube").rotate(np.asarray([0.0,0.0,1.0]), np.pi / 4)
 
     engine.enablePhysics()
 

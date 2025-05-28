@@ -477,6 +477,8 @@ def transform_points(mesh, points, camera):
             i[3] = j[3]
             i[4] = j[4]
             i[5] = j[5]
+    else:
+        forwardVectorAxis = camZ
 
     upVectorAxis = normalize_3d(cross_3d(rotate_vector_3d(camera_up(camera),forwardVectorAxis,forwardVectorAngle),np.asarray([0.0,1.0,0.0])))
     upVectorAngle = angle_3d(np.asarray([0.0,1.0,0.0]), rotate_vector_3d(camera_up(camera),forwardVectorAxis,forwardVectorAngle))
@@ -1134,12 +1136,16 @@ class Model:
         # now, we rotate it using the opposite rotation we would use to transform a point
         forwardRotationAxis = normalize_3d(cross_3d(np.asarray([0.0,0.0,1.0]), self.forward))
         forwardRotationAngle = angle_3d(np.asarray([0.0,0.0,1.0]), self.forward)
-        rotatedUpAxis = rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
-        upRotationAxis = normalize_3d(cross_3d(rotatedUpAxis, self.up))
-        upRotationAngle = angle_3d(rotatedUpAxis, self.up)
         rotatedPoint = localPoint
         if forwardRotationAngle > 0:
             rotatedPoint = rotate_vector_3d(localPoint, forwardRotationAxis, forwardRotationAngle)
+        else:
+            forwardRotationAxis = self.forward
+            
+        rotatedUpAxis = rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
+        upRotationAxis = normalize_3d(cross_3d(rotatedUpAxis, self.up))
+        upRotationAngle = angle_3d(rotatedUpAxis, self.up)
+        
         if upRotationAngle > 0:
             rotatedPoint = rotate_vector_3d(rotatedPoint, upRotationAxis, upRotationAngle)
 
@@ -1170,12 +1176,16 @@ class Model:
         # now, we rotate it using the opposite rotation we would use to transform a point
         forwardRotationAxis = normalize_3d(cross_3d(np.asarray([0.0,0.0,1.0]), self.forward))
         forwardRotationAngle = angle_3d(np.asarray([0.0,0.0,1.0]), self.forward)
-        rotatedUpAxis = rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
-        upRotationAxis = normalize_3d(cross_3d(rotatedUpAxis, self.up))
-        upRotationAngle = angle_3d(rotatedUpAxis, self.up)
         rotatedPoint = localPoint
         if forwardRotationAngle > 0:
             rotatedPoint = rotate_vector_3d(localPoint, forwardRotationAxis, forwardRotationAngle)
+        else:
+            forwardRotationAxis = self.forward
+
+        rotatedUpAxis = rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
+        upRotationAxis = normalize_3d(cross_3d(rotatedUpAxis, self.up))
+        upRotationAngle = angle_3d(rotatedUpAxis, self.up)
+
         if upRotationAngle > 0:
             rotatedPoint = rotate_vector_3d(rotatedPoint, upRotationAxis, upRotationAngle)
 
@@ -1300,8 +1310,10 @@ class Model:
         point[5] = point[2] * self.scale[2]
 
         # then rotation
-        forwardRotationAxis = normalize_3d(cross_3d(np.asarray([0.0,0.0,1.0]), self.forward)) # FIX THIS AHHH
+        forwardRotationAxis = normalize_3d(cross_3d(np.asarray([0.0,0.0,1.0]), self.forward))
         forwardRotationAngle = angle_3d(np.asarray([0.0,0.0,1.0]), self.forward)
+        if (forwardRotationAngle <= 0):
+            forwardRotationAxis = self.forward
         rotatedUpAxis = rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
         upRotationAxis = normalize_3d(cross_3d(rotatedUpAxis, self.up))
         upRotationAngle = angle_3d(rotatedUpAxis, self.up)
