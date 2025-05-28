@@ -1,4 +1,5 @@
 # rendering code was written by FINFET, and heavily modified by me
+# (by that I mean I rewrote everything because FINFET didn't implement triangle clipping)
 
 import pygame as pg
 import numpy as np
@@ -12,7 +13,7 @@ verticalFOV = np.pi / 4
 horizontalFOV = verticalFOV*screenWidth/screenHeight
 
 # this is the default sky color, but can be set using setSkyColor()
-skyColor = np.asarray([200,100,0]).astype('uint8')
+skyColor = np.asarray([0,0,0]).astype('uint8')
 
 # mouse shennanigans
 mouseChange = np.asarray([0.0,0.0])
@@ -23,15 +24,27 @@ cameraMoveSpeed = 10
 cameraRotateSpeed = 0.001
 
 # physics
-gravityCoefficient = 0.5
+gravityCoefficient = 9.81
 
 # clock stuff
 clock = pg.time.Clock()
+hasClockStarted = False # fixing a weird timing issue that breaks physics
 timeSinceLastFrame = 0
 
 # the camera
 # position (x,y,z), forward (x,y,z), up (x,y,z)
-camera = np.asarray([0.0, 0.0, -10.0,       0.0, 0.0, 1.0,      0.0, 1.0, 0.0])
+camera = np.asarray([0.0, 0.0, 0.0,       0.0, 0.0, 1.0,      0.0, 1.0, 0.0])
+
+backgroundMode = "solid color"
+backGroundModes = ["solid color","skybox"]
+
+renderingMode = "texture"
+# the color that the wireframe renderer uses
+# this is NOT passed into draw_triangle(), instead it can be set before calling
+wireframeColor = np.asarray([255,0,0]).astype('uint8')
+renderingModes = ["texture","uv","wireframe"]
+
+physicsEnabled = False
 
 # ********      main engine functions:     ********   
 def init(w, h, ver):
@@ -53,30 +66,111 @@ def init(w, h, ver):
 
     clock = pg.time.Clock()
 
-    camera = np.asarray([0.0, 0.0, -10.0,       0.0, 0.0, 1.0,      0.0, 1.0, 0.0])
+    camera = np.asarray([0.0, 0.0, 0.0,       0.0, 0.0, 1.0,      0.0, 1.0, 0.0])
 
-    pg.display.set_mode((screenWidth, screenHeight), pg.FULLSCREEN)
+    pg.display.set_mode((screenWidth, screenHeight),pg.FULLSCREEN)
 
     pg.mouse.set_visible(0)
     pg.mouse.set_pos(screenWidth/2,screenHeight/2)
 
+def enablePhysics():
+    global physicsEnabled
+    physicsEnabled = True
+
+def disablePhysics():
+    global physicsEnabled
+    physicsEnabled = False
+
+def setRenderingMode(newMode):
+    global renderingMode
+    global renderingModes
+    if (array_has_item(renderingModes, newMode)):
+        renderingMode = newMode
+
+def setBackgroundMode(newMode):
+    global backgroundMode
+    global backGroundModes
+    if (array_has_item(backGroundModes, newMode)):
+        backgroundMode = newMode
+
 def update():
     global timeSinceLastFrame
     global clock
+    global hasClockStarted
+
+    global physicsEnabled
+    global gravityCoefficient
 
     timeSinceLastFrame = clock.tick()*0.001
 
+    if (not hasClockStarted):
+        timeSinceLastFrame = 0
+        hasClockStarted = True
+
     updateCursor()
 
-    for i in getObjectsWithTag("physics"):
-        i.add_velocity(0.0,-1.0 * timeSinceLastFrame * gravityCoefficient, 0.0)
-        i.add_position(i.linearVelocity[0] * timeSinceLastFrame,i.linearVelocity[1] * timeSinceLastFrame,i.linearVelocity[2] * timeSinceLastFrame)
+    if (physicsEnabled):
+        for i in getObjectsWithTag("physics"):
+            i.add_velocity(0.0,-1.0 * timeSinceLastFrame * gravityCoefficient, 0.0)
 
-    pg.display.set_caption(str(timeSinceLastFrame))
+            # collision logic
+
+            # the strategy here is thus:
+
+            # 0. find midpoint on this collider
+            
+            # 1. loop through all colliders
+
+                # check intersection:
+
+                # 1a. find closest point on the other collider to the midpoint of this collider
+                # 1b. find closest point on THIS collider to the closest point on THAT collider (that we just figured out)
+                # 1c. if the points from 1b and 1c are the same, there is an intersection
+
+                # resolve intersection
+
+                # 1d. move this object AWAY so that the closest point on this collider is the closest point on that collider
+                # TODO: torque
+
+            collidersInScene = getObjectsWithTag("box_collider")
+
+            # this comes out as a point (x,y,z) (x transformed, y transformed, z transformed)
+            # it's in world space!
+            returnMidpoint = i.midpoint()
+            worldSpaceMidpoint = np.asarray([returnMidpoint[3],returnMidpoint[4],returnMidpoint[5]])
+
+            for j in collidersInScene:
+
+                # don't do anything if talking about the same object
+                if (j.name == i.name):
+                    continue
+
+                closestPointOnOther = j.closest_point(worldSpaceMidpoint)
+
+                closestPointOnThis = i.closest_point(closestPointOnOther)
+
+                if (length_3d(subtract_3d(closestPointOnOther, closestPointOnThis)) < 0.01):
+                    # this code only runs if the two points are the same (which happens if there's an intersection)
+
+                    # figuring out where the closestPointOnThis should be, basically
+                    pushVector = np.asarray([0.0,-1.0,0.0])
+                    desiredPoint = i.closest_point(np.asarray([closestPointOnThis[0] + pushVector[0] * 100,closestPointOnThis[1] + pushVector[1] * 100,closestPointOnThis[2] + pushVector[2] * 100]))
+
+                    # resolve the collision (hopefully)
+                    # (we're only moving the object, not what it's hitting, for now)
+                    i.add_position(closestPointOnThis[0] - desiredPoint[0],closestPointOnThis[1] - desiredPoint[1],closestPointOnThis[2] - desiredPoint[2])
+
+                    # not a great permanent solution, but make the velocity 0 to make sure the collision stays resolved
+                    i.set_velocity(0,0,0)
+
+            i.add_position(i.linearVelocity[0] * timeSinceLastFrame,i.linearVelocity[1] * timeSinceLastFrame,i.linearVelocity[2] * timeSinceLastFrame)
+                
 
 def getFrame():
     global camera
     global skyColor
+
+    global renderingMode
 
     # like a directional light in unity
     light_dir = np.asarray([0.0,1.0,0.0])
@@ -91,7 +185,6 @@ def getFrame():
     # the value is small because the z buffer stores values of 1/z, so 0 represents the largest depth possible (it would be 1/infinity)
 
     # draw the frame
-    # TODO: proper object spawning
     for model in Model._registry:
         # this function will move the points so that they are centered around the camera
         # basically, handling the camera position/rotation stuff
@@ -100,13 +193,26 @@ def getFrame():
         draw_model(model, frame, model.points, model.triangles, camera, light_dir, z_buffer,
                     model.texture_uv, model.texture_map, model.texture)
     
+    # skybox rendering is NOT SUPPORTED right now!!
+    # if (backgroundMode == "skybox"):
+    #     draw_skybox(frame,z_buffer)
+    
     return frame
+
+# skybox is not supported (or finished) because it's laggy!
+@njit
+def draw_skybox(frame,z_buffer):
+    for x in range(screenWidth):
+        for y in range(screenHeight):
+            if (z_buffer[x,y] == 0): # only do skybox stuff on z_buffer coords that haven't been touched
+                frame[x,y] = np.asarray([255,0,0]).astype('uint8')
 
 def drawScreen(frame):
     # turn the frame into a surface
     surf = pg.surfarray.make_surface(frame)
     # blit that (draw it) onto the screen
-    pg.display.get_surface().blit(surf, (0,0)); pg.display.update()
+    pg.display.get_surface().blit(surf, (0,0))
+    pg.display.update()
 
 def quit():
     pg.quit()
@@ -114,6 +220,25 @@ def quit():
 def setGravity(a):
     global gravityCoefficient
     gravityCoefficient = a
+
+def setWireframeColor(r,g,b):
+    global wireframeColor
+    wireframeColor = constructColor(r,g,b)
+
+# x,y,z is an offset
+def moveCameraToObject(object, x, y, z):
+    pos = object.position
+
+    camera[0] = pos[0] + x
+    camera[1] = pos[1] + y
+    camera[2] = pos[2] + z
+
+def setCameraPosition(x,y,z):
+    global camera
+
+    camera[0] = x
+    camera[1] = y
+    camera[2] = z
 
 def moveCamera():
     global camera
@@ -149,6 +274,9 @@ def moveCamera():
         camera[0] -= forward[0] * cameraMoveSpeed * timeSinceLastFrame
         camera[1] -= forward[1] * cameraMoveSpeed * timeSinceLastFrame
         camera[2] -= forward[2] * cameraMoveSpeed * timeSinceLastFrame
+
+    if pressed_keys[ord('1')]:
+        getObject("block").add_position(1* timeSinceLastFrame,0.0* timeSinceLastFrame,0.0* timeSinceLastFrame)
 def updateCursor():
     global mousePos
     global mouseChange
@@ -186,12 +314,19 @@ def spawnCube(x,y,z,tags):
 
     getObject(name).set_position(x,y,z)
 
-# object names may NOT have parentheses!
-def spawnObject(objPath, texturePath, name, x, y, z, tags):
+def spawnObjectWithTexture(objPath, texturePath, name, x, y, z, tags):
+    if (getFirstIndex(name, '(') < len(name)): # object names may NOT have parentheses!
+        return
+    name = nameModel(name)
+    Model(name,objPath, texturePath,tags,np.asarray([0,0,0]).astype('uint8'))
+
+    getObject(name).set_position(x,y,z)
+
+def spawnObjectWithColor(objPath, colorR, colorG, colorB, name, x, y, z, tags):
     if (getFirstIndex(name, '(') < len(name)):
         return
-    name = nameModel("cube")
-    Model(name,objPath, texturePath,tags)
+    name = nameModel(name)
+    Model(name,objPath, '',tags,np.asarray([colorR,colorG,colorB]).astype('uint8'))
 
     getObject(name).set_position(x,y,z)
 
@@ -219,7 +354,7 @@ def getObject(name):
     for i in Model._registry:
         if (i.name == name):
             return i
-        
+    
     return Model._registry[0]
     
 def namesMatch(a,b):
@@ -359,10 +494,50 @@ def triangle_state(points, triangle):
         return 1 # all behind
     else:
         return 2 # both
+    
+# drawing the box that represents a collider (or trigger)
+# triggers are drawn in RED, colliders in GREEN, for now
+# z-buffering is not used here because draw_triangle() is called with the wireframe mode
+def draw_box_collider(isTrigger, worldPosition, sizes):
+    global screenWidth
+    global screenHeight
 
+    global horizontalFOV
+    global verticalFOV
+
+    global wireframeColor
+    if (isTrigger):
+        wireframeColor = constructColor(255,0,0)
+    else:
+        wireframeColor = constructColor(0,255,0)
+
+    # TODO: convert the box into triangles, and draw it
+
+def draw_box_collider(isTrigger, worldPosition, radius):
+    global screenWidth
+    global screenHeight
+
+    global horizontalFOV
+    global verticalFOV
+
+    global wireframeColor
+    if (isTrigger):
+        wireframeColor = constructColor(255,0,0)
+    else:
+        wireframeColor = constructColor(0,255,0)
+
+    # TODO: how do I draw a sphere???
+    
+
+# z-buffering is still used EVEN during wireframe
 def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, texture_uv, texture_map, texture):
     global screenWidth
     global screenHeight
+
+    global renderingMode
+
+    global horizontalFOV
+    global verticalFOV
 
     # for the first part of things, we're gonna use the set of points that's transformed to be camera-relative
     # in other words, indices 3,4 and 5
@@ -381,6 +556,10 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
         # camera relative normal vector
         # it's not a unit vector! it will have magnitude of sin(theta)
         normal = np.cross(vet1, vet2)
+
+        # backface culling !!!
+        if (dot_3d(normalize_3d(normal), np.asarray([0.0,0.0,1.0])) > 0.5):
+            continue
 
         # ******* STEP 1: *******
         # we have to figure out which triangles are behind the camera, in front of the camera, or both (some verts behind, some in front)
@@ -417,7 +596,7 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
             minY = np.min([projpoints[0][7],projpoints[1][7],projpoints[2][7]])
             maxY = np.max([projpoints[0][7],projpoints[1][7],projpoints[2][7]])
 
-            draw_triangle(frame, z_buffer, texture, projpoints, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2)
+            draw_triangle(frame, z_buffer, texture, projpoints, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2,renderingMode)
         elif(triangleState == 2):
             # here, the triangle is both behind and in front, and we need to clip it
 
@@ -531,7 +710,7 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
 
                 # now that we have our three triangle points (not behind the camera anymore), we can draw them
 
-                draw_triangle(frame, z_buffer, texture, goodVertices, goodUV, minX, maxX, minY, maxY, np.asarray([0.0,0.0]), z0, z1, z2)
+                draw_triangle(frame, z_buffer, texture, goodVertices, goodUV, minX, maxX, minY, maxY, text_size, z0, z1, z2,renderingMode)
             elif (len(problemVertices) == 1):
                 # here only one vertex is an issue
                 # the procedure is similar, but we end up with two triangles
@@ -593,17 +772,19 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
                 uv1 = np.asarray([goodUV[0] * z01,goodUV[1] * z11,goodUV[2] * z21])
                 uv2 = np.asarray([goodUV[1] * z02,goodUV[3] * z12,goodUV[2] * z22])
 
-                draw_triangle(frame, z_buffer, texture, good1, uv1, minX1, maxX1, minY1, maxY1, np.asarray([0.0,0.0]), z01, z11, z21)
-                draw_triangle(frame, z_buffer, texture, good2, uv2, minX2, maxX2, minY2, maxY2, np.asarray([0.0,0.0]), z02, z12, z22)
+                draw_triangle(frame, z_buffer, texture, good1, uv1, minX1, maxX1, minY1, maxY1, text_size, z01, z11, z21,renderingMode)
+                draw_triangle(frame, z_buffer, texture, good2, uv2, minX2, maxX2, minY2, maxY2, text_size, z02, z12, z22,renderingMode)
 
 
         #  we do nothing if the triangle is all behind (state == 1), we just skip those
 
-
+# z-buffering NOT used for wireframe, it is for the others though
 @njit
-def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2):
+def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2, renderMode):
     global screenWidth
     global screenHeight
+
+    global wireframeColor
 
     # barycentric denominator, based on https://codeplea.com/triangular-interpolation
     # this will come into play when calculating the texture coordinates, and depth at the current pixel
@@ -622,25 +803,33 @@ def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, 
             w1 = ((proj_points[2][7]-proj_points[0][7])*(x - proj_points[2][6]) + (proj_points[0][6]-proj_points[2][6])*(y - proj_points[2][7]))/denominator
             w2 = 1 - w0 - w1
 
-            # if any weight is negative, we're outside the triangle and so we won't do anything
-            if (w0 < 0 or w1 < 0 or w2 < 0):
-                continue
+            if (renderMode == "wireframe"):
+                if (w0 < 0 or w1 < 0 or w2 < 0):
+                    continue
 
-            # sinze z0,z1, and z2 are all 1/z at some point, this value will also be 1 / z
-            z = w0*z0 + w1*z1 + w2*z2
-            u = ((w0*uv_points[0][0] + w1*uv_points[1][0] + w2*uv_points[2][0])*(1/z + 0.0001))
-            v = ((w0*uv_points[0][1] + w1*uv_points[1][1] + w2*uv_points[2][1])*(1/z + 0.0001))
+                if (np.abs(w0*z0) < 0.0001 or np.abs(w1*z1) < 0.0001 or np.abs(w2*z2) < 0.0001):
+                        frame[x, y] = wireframeColor
+            else:
+                # if any weight is negative, we're outside the triangle and so we won't do anything
+                if (w0 < 0 or w1 < 0 or w2 < 0):
+                    continue
 
-            # z needs to be greater than the value at the z buffer, meaning 1 / z needs to be less
-            # also make sure the u and v coords are valid, they need to be [0..1]
-            if z > z_buffer[x, y] and min(u,v) >= 0 and max(u,v) < 1:
-                # z buffer stores values of 1 / z
-                z_buffer[x, y] = z
+                # sinze z0,z1, and z2 are all 1/z at some point, this value will also be 1 / z
+                z = w0*z0 + w1*z1 + w2*z2
+                u = ((w0*uv_points[0][0] + w1*uv_points[1][0] + w2*uv_points[2][0])*(1/z + 0.0001))
+                v = ((w0*uv_points[0][1] + w1*uv_points[1][1] + w2*uv_points[2][1])*(1/z + 0.0001))
 
-                # showing the u and v coords as a color, not the actual texture just yet
-                frame[x, y] = np.asarray([u*255,v*255,0]).astype('uint8')
+                # z needs to be greater than the value at the z buffer, meaning 1 / z needs to be less
+                # also make sure the u and v coords are valid, they need to be [0..1]
+                if z > z_buffer[x, y] and min(u,v) >= 0 and max(u,v) < 1:
+                    # z buffer stores values of 1 / z
+                    z_buffer[x, y] = z
 
-                #frame[x, y] = shade*texture[int(u*text_size[0])][int(v*text_size[1])]
+                    # showing the u and v coords as a color, not the actual texture just yet
+                    if (renderMode == "uv"):
+                        frame[x, y] = np.asarray([u*255,v*255,0]).astype('uint8')
+                    elif (renderMode == "texture"):
+                        frame[x, y] = texture[int(u*text_size[0])][int(v*text_size[1])]
 
 @njit
 def clamp(val, lower, upper):
@@ -850,6 +1039,9 @@ class Model:
     tags = []
 
     # models use dictionaries as per-object variables
+    # this allows the storage of things like collider data
+    # (there is a collider TAG too, because it makes it easier to search through objects (objects have less tags than data), but that might change)
+    data = {}
 
     # essentially a unity transform component:
 
@@ -862,8 +1054,13 @@ class Model:
     # physics stuff
     linearVelocity = np.asarray([0.0,0.0,0.0])
     angularVelocity = np.asarray([0.0,0.0,0.0])
+    
+    # average of all vertices
+    rawMidpoint = np.asarray([0.0,0.0,0.0])
 
-    def __init__(self, name, path_obj, path_texture, tags):
+    color = np.asarray([0,0,0]).astype('uint8')
+
+    def __init__(self, name, path_obj, path_texture, tags, color):
         self.name = name
 
         self.tags = tags
@@ -882,6 +1079,100 @@ class Model:
         self.points, self.triangles, self.texture_uv, self.texture_map =  read_obj(path_obj)
         self.texture = pg.surfarray.array3d(pg.image.load(path_texture))
 
+        self.rawMidpoint = self.calculateRawMidpoint()
+
+        self.data = {}
+
+        # for textured models, the color does nothing
+        # for colored models, the color applies to all geometry
+        self.color = color
+
+    # given a point, find the closest point ON THIS OBJECT'S COLLIDER
+    def closest_point(self, foreignPoint):
+        # we're assuming that if the object has a collider tag, it has the necessary data
+        # if this somehow isn't true, we get problems lol because the collider defaults to 0,0,0
+
+        # the proceudre is basically to transform the given point so that it's relative to the local axes,
+        # then clamp it to the box,
+        # then transform it back
+
+        # move the point so its POSITION is local
+        rmpoint= self.midpoint()
+        worldSpaceMidpoint = np.asarray([rmpoint[3],rmpoint[4],rmpoint[5]])
+        localPoint = np.asarray([foreignPoint[0] - worldSpaceMidpoint[0],foreignPoint[1] - worldSpaceMidpoint[1],foreignPoint[2] - worldSpaceMidpoint[2]])
+
+        # now, we rotate it using the opposite rotation we would use to transform a point
+        forwardRotationAxis = normalize_3d(cross_3d(np.asarray([0.0,0.0,1.0]), self.forward))
+        forwardRotationAngle = angle_3d(np.asarray([0.0,0.0,1.0]), self.forward)
+        rotatedUpAxis = rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
+        upRotationAxis = normalize_3d(cross_3d(rotatedUpAxis, self.up))
+        upRotationAngle = angle_3d(rotatedUpAxis, self.up)
+        rotatedPoint = localPoint
+        if forwardRotationAngle > 0:
+            rotatedPoint = rotate_vector_3d(localPoint, forwardRotationAxis, forwardRotationAngle)
+        if upRotationAngle > 0:
+            rotatedPoint = rotate_vector_3d(rotatedPoint, upRotationAxis, upRotationAngle)
+
+        colliderBounds = self.data["collider_bounds"]
+
+        # now, clamp it 
+        # this function takes in (point, point point) and (box, box, box)
+        clampedPoint = clamp_box_3d(rotatedPoint,np.asarray([0.0,0.0,0.0]),colliderBounds)
+
+        rotatedPoint = clampedPoint
+
+        #print(str(clampedPoint + worldSpaceMidpoint) + "     " + str(foreignPoint))
+
+        # UNROTATE THE POINT
+        if upRotationAngle > 0:
+            rotatedPoint = rotate_vector_3d(clampedPoint, upRotationAxis, -upRotationAngle)
+        if forwardRotationAngle > 0:
+            rotatedPoint = rotate_vector_3d(rotatedPoint, forwardRotationAxis, -forwardRotationAngle)
+
+        # add the position back
+        return np.asarray([rotatedPoint[0] + worldSpaceMidpoint[0],rotatedPoint[1] + worldSpaceMidpoint[1],rotatedPoint[2] + worldSpaceMidpoint[2]])
+    
+    def is_point_inside(self, foreignPoint):
+        rmpoint= self.midpoint()
+        worldSpaceMidpoint = np.asarray([rmpoint[3],rmpoint[4],rmpoint[5]])
+        localPoint = np.asarray([foreignPoint[0] - worldSpaceMidpoint[0],foreignPoint[1] - worldSpaceMidpoint[1],foreignPoint[2] - worldSpaceMidpoint[2]])
+
+        # now, we rotate it using the opposite rotation we would use to transform a point
+        forwardRotationAxis = normalize_3d(cross_3d(np.asarray([0.0,0.0,1.0]), self.forward))
+        forwardRotationAngle = angle_3d(np.asarray([0.0,0.0,1.0]), self.forward)
+        rotatedUpAxis = rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
+        upRotationAxis = normalize_3d(cross_3d(rotatedUpAxis, self.up))
+        upRotationAngle = angle_3d(rotatedUpAxis, self.up)
+        rotatedPoint = localPoint
+        if forwardRotationAngle > 0:
+            rotatedPoint = rotate_vector_3d(localPoint, forwardRotationAxis, forwardRotationAngle)
+        if upRotationAngle > 0:
+            rotatedPoint = rotate_vector_3d(rotatedPoint, upRotationAxis, upRotationAngle)
+
+        colliderBounds = self.data["collider_bounds"]
+
+        return point_in_box_3d(rotatedPoint,np.asarray([0.0,0.0,0.0]),colliderBounds)
+        
+        # there's no reason to un-transform the point, we're only trying to find whether its in the box
+
+    def add_data(self, key, value):
+        # update the entry in the dictionary
+        self.data[key] = value
+
+    def calculateRawMidpoint(self):
+        toReturn = np.asarray([0.0,0.0,0.0])
+
+        for i in self.points:
+            toReturn[0] += i[0] / len(self.points)
+            toReturn[1] += i[1] / len(self.points)
+            toReturn[2] += i[2] / len(self.points)
+
+        return toReturn
+    
+    def midpoint(self):
+        rawMidpoint = np.asarray([self.rawMidpoint[0],self.rawMidpoint[1],self.rawMidpoint[2],0.0,0.0,0.0])
+        return self.transform_point(rawMidpoint)
+
     # whether the tags array has a given tag
     def hasTag(self, tag):
         for i in self.tags:
@@ -891,7 +1182,31 @@ class Model:
         return False
 
     # when messing with models, please use the functions and don't mess with the variables themselves!
-    
+
+    def is_triggered(self):
+        # assuming there IS actually a trigger collider when this function is called
+        
+        # also, the only objects that are detected in trigger colliders are ones with the "interact" tag
+        # ALSO, COLLIDERS are the only thing that triggers a trigger collider, not other trigger colliders
+        possibleObjects = getObjectsWithTag("interact")
+
+        # loop through each, and check to see if the closest point on their collider
+
+    def add_collider(self,boundsX,boundsY,boundsZ):
+        self.add_tag("collider")
+
+        self.add_data("collider_bounds", np.asarray([boundsX,boundsY,boundsZ]))
+
+    def add_trigger(self,boundsX,boundsY,boundsZ):
+        self.add_tag("trigger")
+
+        self.add_data("trigger_bounds", np.asarray([boundsX,boundsY,boundsZ]))
+
+    def add_tag(self, tagName):
+        if (array_has_item(self.tags, tagName)):
+            return
+        self.tags.append(tagName)
+
     def add_velocity(self,x,y,z):
         self.linearVelocity[0] += x
         self.linearVelocity[1] += y
@@ -955,7 +1270,7 @@ class Model:
         point[5] = point[2] * self.scale[2]
 
         # then rotation
-        forwardRotationAxis = normalize_3d(cross_3d(np.asarray([0.0,0.0,1.0]), self.forward))
+        forwardRotationAxis = normalize_3d(cross_3d(np.asarray([0.0,0.0,1.0]), self.forward)) # FIX THIS AHHH
         forwardRotationAngle = angle_3d(np.asarray([0.0,0.0,1.0]), self.forward)
         rotatedUpAxis = rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
         upRotationAxis = normalize_3d(cross_3d(rotatedUpAxis, self.up))
@@ -975,3 +1290,30 @@ class Model:
         point[5] += self.position[2]
 
         return point
+    
+def array_has_item(array, item):
+    for i in array:
+        if (i == item):
+            return True
+        
+    return False
+
+# the box's bounds represent SIZE, NOT EXTENTS
+def clamp_box_3d(point, boxCenter, boxSizes):
+    newX = min(max(point[0], boxCenter[0] - boxSizes[0]/2), boxCenter[0] + boxSizes[0]/2)
+    newY = min(max(point[1], boxCenter[1] - boxSizes[1]/2), boxCenter[1] + boxSizes[1]/2)
+    newZ = min(max(point[2], boxCenter[2] - boxSizes[2]/2), boxCenter[2] + boxSizes[2]/2)
+
+    return np.asarray([newX,newY,newZ])
+
+# I don't like typing out the np.asarray([]) function, so this one makes colors a bit less verbose
+def constructColor(r,g,b):
+    return np.asarray([r,g,b]).astype('uint8')
+
+# whether a point is in an AABB (axis aligned bounding box)
+# again, the sizes are SIZES, NOT EXTENTS in each direction
+def point_in_box_3d(point, boxCenter, boxSizes):
+    if (point[0] > boxCenter[0] - boxSizes[0]/2 and point[1] > boxCenter[1] - boxSizes[1]/2 and point[2] > boxCenter[2] - boxSizes[2]/2 and point[0] < boxCenter[0] + boxSizes[0]/2 and point[1] < boxCenter[1] + boxSizes[1]/2 and point[2] < boxCenter[2] + boxSizes[2]/2):
+        return True
+    else:
+        return False
