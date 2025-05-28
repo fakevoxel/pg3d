@@ -45,6 +45,7 @@ wireframeColor = np.asarray([255,0,0]).astype('uint8')
 renderingModes = ["texture","uv","wireframe"]
 
 physicsEnabled = False
+backfaceCulling = True
 
 # ********      main engine functions:     ********   
 def init(w, h, ver):
@@ -58,7 +59,7 @@ def init(w, h, ver):
 
     screenWidth = w
     screenHeight = h
-    verticalFOV = ver
+    verticalFOV = ver * np.pi / 180
     horizontalFOV = verticalFOV*screenWidth/screenHeight
 
     # required for pygame to work properly
@@ -72,6 +73,14 @@ def init(w, h, ver):
 
     pg.mouse.set_visible(0)
     pg.mouse.set_pos(screenWidth/2,screenHeight/2)
+
+def disableBackfaceCulling():
+    global backfaceCulling
+    backfaceCulling = False
+
+def enableBackfaceCulling():
+    global backfaceCulling
+    backfaceCulling = True
 
 def enablePhysics():
     global physicsEnabled
@@ -539,6 +548,8 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
     global horizontalFOV
     global verticalFOV
 
+    global backfaceCulling
+
     # for the first part of things, we're gonna use the set of points that's transformed to be camera-relative
     # in other words, indices 3,4 and 5
 
@@ -558,8 +569,9 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
         normal = np.cross(vet1, vet2)
 
         # backface culling !!!
-        if (dot_3d(normalize_3d(normal), np.asarray([0.0,0.0,1.0])) > 0.5):
-            continue
+        if (backfaceCulling):
+            if (dot_3d(normalize_3d(normal), np.asarray([0.0,0.0,1.0])) > 0.5):
+                continue
 
         # ******* STEP 1: *******
         # we have to figure out which triangles are behind the camera, in front of the camera, or both (some verts behind, some in front)
@@ -822,14 +834,20 @@ def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, 
                 # z needs to be greater than the value at the z buffer, meaning 1 / z needs to be less
                 # also make sure the u and v coords are valid, they need to be [0..1]
                 if z > z_buffer[x, y] and min(u,v) >= 0 and max(u,v) < 1:
-                    # z buffer stores values of 1 / z
-                    z_buffer[x, y] = z
-
                     # showing the u and v coords as a color, not the actual texture just yet
                     if (renderMode == "uv"):
                         frame[x, y] = np.asarray([u*255,v*255,0]).astype('uint8')
+
+                        # z buffer stores values of 1 / z
+                        z_buffer[x, y] = z
                     elif (renderMode == "texture"):
-                        frame[x, y] = texture[int(u*text_size[0])][int(v*text_size[1])]
+                        pixelColor = texture[int(u*text_size[0])][int(v*text_size[1])]
+                        # ALL objects in the scene are rendered using alpha-clip, so if there's no color it's transparent
+                        if (pixelColor[0] > 0 and pixelColor[1] > 0 and pixelColor[2] > 0):
+                            frame[x, y] = pixelColor
+
+                            # z buffer stores values of 1 / z
+                            z_buffer[x, y] = z
 
 @njit
 def clamp(val, lower, upper):
