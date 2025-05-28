@@ -165,8 +165,12 @@ def update():
                     pushVector = np.asarray([0.0,-1.0,0.0])
                     desiredPoint = i.closest_point(np.asarray([closestPointOnThis[0] + pushVector[0] * 100,closestPointOnThis[1] + pushVector[1] * 100,closestPointOnThis[2] + pushVector[2] * 100]))
 
-                    # resolve the collision (hopefully)
+                    # resolve the collision (hopefully) 
                     # (we're only moving the object, not what it's hitting, for now)
+
+                    # turns out, this isn't an amazing solution
+                    # gotta implement raycasting before I can rlly solve this properly
+                    # fortunately, it's enough for a platformer game
                     i.add_position(closestPointOnThis[0] - desiredPoint[0],closestPointOnThis[1] - desiredPoint[1],closestPointOnThis[2] - desiredPoint[2])
 
                     # not a great permanent solution, but make the velocity 0 to make sure the collision stays resolved
@@ -200,7 +204,7 @@ def getFrame():
         transform_points(model, model.points, camera)
         # this function will project the triangles onto the screen, and draw them
         draw_model(model, frame, model.points, model.triangles, camera, light_dir, z_buffer,
-                    model.texture_uv, model.texture_map, model.texture)
+                    model.texture_uv, model.texture_map, model.texture, model.color)
     
     # skybox rendering is NOT SUPPORTED right now!!
     # if (backgroundMode == "skybox"):
@@ -301,7 +305,7 @@ def updateCursor():
 def mouse_position():
     return pg.mouse.get_pos() + mouseOffset
 
-def rotateCamera():
+def updateCamera_freecam():
     global screenWidth
     global screenHeight
 
@@ -309,6 +313,16 @@ def rotateCamera():
     yChange = mouseChange[1]
 
     rotate_camera(camera,camera_up(camera),xChange * -0.001)
+    rotate_camera(camera,camera_right(camera),yChange * 0.001)
+
+def updateCamera_firstPerson():
+    global screenWidth
+    global screenHeight
+
+    xChange = mouseChange[0]
+    yChange = mouseChange[1]
+
+    rotate_camera(camera,np.asarray([0.0,1.0,0.0]),xChange * -0.001)
     rotate_camera(camera,camera_right(camera),yChange * 0.001)
 
 # ********   OBJECT functions:     ********
@@ -319,19 +333,19 @@ def setBackGroundColor(r,g,b):
 
 def spawnCube(x,y,z,tags):
     name = nameModel("cube")
-    Model(name,'assets/cube.obj', 'assets/grid_16.png',tags)
+    Model(name,'assets/cube.obj', 'assets/grid_16.png',tags, Color.white)
 
     getObject(name).set_position(x,y,z)
 
-def spawnObjectWithTexture(objPath, texturePath, name, x, y, z, tags):
+def spawnObjectWithTexture(objPath, texturePath, name, x, y, z, tags, color):
     if (getFirstIndex(name, '(') < len(name)): # object names may NOT have parentheses!
         return
     name = nameModel(name)
-    Model(name,objPath, texturePath,tags,np.asarray([0,0,0]).astype('uint8'))
+    Model(name,objPath, texturePath,tags,color)
 
     getObject(name).set_position(x,y,z)
 
-def spawnObjectWithColor(objPath, colorR, colorG, colorB, name, x, y, z, tags):
+def spawnObjectWithColor(objPath, name, x, y, z, tags, colorR, colorG, colorB):
     if (getFirstIndex(name, '(') < len(name)):
         return
     name = nameModel(name)
@@ -539,7 +553,7 @@ def draw_box_collider(isTrigger, worldPosition, radius):
     
 
 # z-buffering is still used EVEN during wireframe
-def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, texture_uv, texture_map, texture):
+def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, texture_uv, texture_map, texture, color):
     global screenWidth
     global screenHeight
 
@@ -608,7 +622,7 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
             minY = np.min([projpoints[0][7],projpoints[1][7],projpoints[2][7]])
             maxY = np.max([projpoints[0][7],projpoints[1][7],projpoints[2][7]])
 
-            draw_triangle(frame, z_buffer, texture, projpoints, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2,renderingMode)
+            draw_triangle(frame, z_buffer, texture, projpoints, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2,renderingMode, color)
         elif(triangleState == 2):
             # here, the triangle is both behind and in front, and we need to clip it
 
@@ -722,7 +736,7 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
 
                 # now that we have our three triangle points (not behind the camera anymore), we can draw them
 
-                draw_triangle(frame, z_buffer, texture, goodVertices, goodUV, minX, maxX, minY, maxY, text_size, z0, z1, z2,renderingMode)
+                draw_triangle(frame, z_buffer, texture, goodVertices, goodUV, minX, maxX, minY, maxY, text_size, z0, z1, z2,renderingMode, color)
             elif (len(problemVertices) == 1):
                 # here only one vertex is an issue
                 # the procedure is similar, but we end up with two triangles
@@ -784,15 +798,15 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
                 uv1 = np.asarray([goodUV[0] * z01,goodUV[1] * z11,goodUV[2] * z21])
                 uv2 = np.asarray([goodUV[1] * z02,goodUV[3] * z12,goodUV[2] * z22])
 
-                draw_triangle(frame, z_buffer, texture, good1, uv1, minX1, maxX1, minY1, maxY1, text_size, z01, z11, z21,renderingMode)
-                draw_triangle(frame, z_buffer, texture, good2, uv2, minX2, maxX2, minY2, maxY2, text_size, z02, z12, z22,renderingMode)
+                draw_triangle(frame, z_buffer, texture, good1, uv1, minX1, maxX1, minY1, maxY1, text_size, z01, z11, z21,renderingMode, color)
+                draw_triangle(frame, z_buffer, texture, good2, uv2, minX2, maxX2, minY2, maxY2, text_size, z02, z12, z22,renderingMode, color)
 
 
         #  we do nothing if the triangle is all behind (state == 1), we just skip those
 
 # z-buffering NOT used for wireframe, it is for the others though
 @njit
-def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2, renderMode):
+def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2, renderMode, color):
     global screenWidth
     global screenHeight
 
@@ -833,7 +847,7 @@ def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, 
 
                 # z needs to be greater than the value at the z buffer, meaning 1 / z needs to be less
                 # also make sure the u and v coords are valid, they need to be [0..1]
-                if z > z_buffer[x, y] and min(u,v) >= 0 and max(u,v) < 1:
+                if z > z_buffer[x, y] and min(u,v) >= 0 and max(u,v) <= 1:
                     # showing the u and v coords as a color, not the actual texture just yet
                     if (renderMode == "uv"):
                         frame[x, y] = np.asarray([u*255,v*255,0]).astype('uint8')
@@ -841,10 +855,10 @@ def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, 
                         # z buffer stores values of 1 / z
                         z_buffer[x, y] = z
                     elif (renderMode == "texture"):
-                        pixelColor = texture[int(u*text_size[0])][int(v*text_size[1])]
+                        pixelColor = texture[int(u*text_size[0] + 1)][int(v*text_size[1])]
                         # ALL objects in the scene are rendered using alpha-clip, so if there's no color it's transparent
                         if (pixelColor[0] > 0 and pixelColor[1] > 0 and pixelColor[2] > 0):
-                            frame[x, y] = pixelColor
+                            frame[x, y] = pixelColor * color
 
                             # z buffer stores values of 1 / z
                             z_buffer[x, y] = z
@@ -852,14 +866,6 @@ def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, 
 @njit
 def clamp(val, lower, upper):
     return min(max(val, lower), upper)
-
-@njit()
-def get_slopes(startX, middleX, stopX, startY, middleY, stopY):
-    slope_1 = (stopX - startX)/(stopY - startY + 1e-32) # + 1e-32 avoid zero division ¯\_(ツ)_/¯
-    slope_2 = (middleX - startX)/(middleY - startY + 1e-32)
-    slope_3 = (stopX - middleX)/(stopY - middleY + 1e-32)
-
-    return np.asarray([slope_1, slope_2, slope_3]) 
 
 def average_point_3d(list):
     toReturn = np.asarray([0.0,0.0,0.0])
@@ -895,6 +901,9 @@ def length_2d(a):
 # takes in a vector, outputs that vector as a unit vector
 def normalize_2d(a):
     l = length_2d(a)
+
+    if (l == 0):
+        return np.asarray([0.0,0.0])
 
     return np.asarray([a[0]/l,a[1]/l])
 
@@ -955,6 +964,9 @@ def cross_3d(a,b):
 # takes in a vector, outputs that vector as a unit vector
 def normalize_3d(a):
     l = length_3d(a)
+
+    if (l == 0):
+        return np.asarray([0.0,0.0,0.0])
 
     return np.asarray([a[0]/l,a[1]/l,a[2]/l])
 
@@ -1101,7 +1113,7 @@ class Model:
 
         self.data = {}
 
-        # for textured models, the color does nothing
+        # for textured models, the color is multiplied by the texture
         # for colored models, the color applies to all geometry
         self.color = color
 
@@ -1335,3 +1347,18 @@ def point_in_box_3d(point, boxCenter, boxSizes):
         return True
     else:
         return False
+    
+# PROJECT VECTOR
+    
+class Color:
+    white = np.asarray([1,1,1]).astype('float32')
+
+    red = np.asarray([1,0,0]).astype('float32')
+    green = np.asarray([0,1,0]).astype('float32')
+    blue = np.asarray([0,0,1]).astype('float32')
+
+    yellow = np.asarray([1,1,0]).astype('float32')
+    cyan = np.asarray([0,1,1]).astype('float32')
+    magenta = np.asarray([1,0,1]).astype('float32')
+
+    orange = np.asarray([1,0.592156862745098,0.1882352941176471]).astype('float32')
