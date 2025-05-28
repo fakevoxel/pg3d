@@ -7,7 +7,7 @@ from pg3d import Color
 
 def main():
     # start the engine
-    engine.init(800,600,70)
+    engine.init(100,75,800,600, 70)
 
     # set the background color to blue
     engine.setBackGroundColor(0,100,200)
