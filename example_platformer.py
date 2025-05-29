@@ -10,7 +10,7 @@ from pg3d import Color
 # This script is set up to call the main() function immediately (see the last line), and all code runs inside main().
 def main():
     # start the engine
-    engine.init(100,75,800,600, 70)
+    engine.init(200,150,800,600, 70)
 
     # You can change the background color of the game with this function:
     engine.setBackGroundColor(0,100,200)
@@ -28,7 +28,8 @@ def main():
 
     engine.spawnCube(0.0, 5.0, 0.0, ["physics","box_collider"])
     engine.getObject("cube").add_data("collider_bounds",np.asarray([2.0,2.0,2.0]))
-    engine.getObject("cube").rotate(np.asarray([0.0,0.0,1.0]), np.pi / 4)
+
+    engine.parentCamera("cube",0.0,4.0,0.0)
 
     engine.enablePhysics()
 
@@ -49,21 +50,10 @@ def main():
                 playerObj.add_position(0.0,0.1,0.0)
                 playerObj.add_velocity(0.0,10.0,0.0)
 
-        pressed_keys = pg.key.get_pressed()
-
-        moveSpeed = 0.2
-        
-        if pressed_keys[ord('w')]:
-            playerObj.add_position(0.0,0.0,1.0 * moveSpeed)
-        elif pressed_keys[ord('s')]:
-            playerObj.add_position(0.0,0.0,-1.0 * moveSpeed)
-        if pressed_keys[ord('a')]:
-            playerObj.add_position(1.0 * moveSpeed,0.0,0.0)
-        elif pressed_keys[ord('d')]:
-            playerObj.add_position(-1.0 * moveSpeed,0.0,0.0)
-
-        engine.moveCameraToObject(engine.getObject("cube"), 0, 4, 0)
-        engine.updateCamera_firstPerson()
+        # A lot of games use a first person camera controller, so PG3D has that as a built-in feature.
+        # All you have to do is parent the camera to an object (the object represents the player) which we did above,
+        # and then call updateCamera_firstPerson() to handle movement and all that.
+        engine.updateCamera_firstPerson(4)
 
         # (annoyingly) MUST CALL update() AFTER getFrame() and drawScreen()!
         engine.update()

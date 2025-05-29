@@ -28,8 +28,6 @@ mousePos = np.asarray([0.0,0.0]) # the mouse position, equal to pg.mouse.get_pos
 # this allows reading the mouse position to go beyond the limits of the screen, good for camera controllers
 mouseOffset = np.asarray([0.0,0.0]) 
 
-# the move speed of the camera, used in the moveCamera() func
-cameraMoveSpeed = 10
 # the rotate speed of the camera, used in camearaUpdate functions
 cameraRotateSpeed = 0.001
 
@@ -46,6 +44,10 @@ timeSinceLastFrame = 0
 # the right vector is NOT defined/kept track of because it's unecessary, knowing the other two is enough
 # why is the right vector the one that's ommited? idk
 camera = np.asarray([0.0, 0.0, 0.0,       0.0, 0.0, 1.0,      0.0, 1.0, 0.0])
+
+# object parenting is not supported, but CAMERA parenting is (bc im lazy)
+cameraParent = None
+cameraLocalOffset = np.asarray([0.0,0.0,0.0])
 
 # this amounts to nothing, because skybox rendering is not supported
 backgroundMode = "solid color"
@@ -118,6 +120,18 @@ def disablePhysics():
     global physicsEnabled
     physicsEnabled = False
 
+# used for camera controllers
+def parentCamera(parentName, offX, offY, offZ):
+    global cameraParent
+    global cameraLocalOffset
+
+    cameraParent = getObject(parentName)
+    cameraLocalOffset = np.asarray([offX,offY,offZ])
+
+def unParentCamera():
+    global cameraParent
+    cameraParent = None
+
 def setRenderingMode(newMode):
     global renderingMode
     global renderingModes
@@ -137,6 +151,16 @@ def update():
 
     global physicsEnabled
     global gravityCoefficient
+
+    global cameraParent
+    global cameraLocalOffset
+
+    if (cameraParent != None):
+        # the camera is parented, so move it to the position of the parent, plus an offset
+        parentPosition = cameraParent.position
+        camera[0] = parentPosition[0] + cameraLocalOffset[0]
+        camera[1] = parentPosition[1] + cameraLocalOffset[1]
+        camera[2] = parentPosition[2] + cameraLocalOffset[2]
 
     timeSinceLastFrame = clock.tick()*0.001
 
@@ -282,43 +306,6 @@ def setCameraPosition(x,y,z):
     camera[1] = y
     camera[2] = z
 
-def moveCamera():
-    global camera
-    global timeSinceLastFrame
-    pressed_keys = pg.key.get_pressed()
-    if pressed_keys[ord('w')]:
-        forward = camera_forward(camera)
-        camera[0] += forward[0] * cameraMoveSpeed * timeSinceLastFrame
-        camera[1] += forward[1] * cameraMoveSpeed * timeSinceLastFrame
-        camera[2] += forward[2] * cameraMoveSpeed * timeSinceLastFrame
-    elif pressed_keys[ord('s')]:
-        forward = camera_forward(camera)
-        camera[0] -= forward[0] * cameraMoveSpeed * timeSinceLastFrame
-        camera[1] -= forward[1] * cameraMoveSpeed * timeSinceLastFrame
-        camera[2] -= forward[2] * cameraMoveSpeed * timeSinceLastFrame
-    if pressed_keys[ord('a')]:
-        forward = camera_right(camera)
-        camera[0] += forward[0] * cameraMoveSpeed * timeSinceLastFrame
-        camera[1] += forward[1] * cameraMoveSpeed * timeSinceLastFrame
-        camera[2] += forward[2] * cameraMoveSpeed * timeSinceLastFrame
-    elif pressed_keys[ord('d')]:
-        forward = camera_right(camera)
-        camera[0] -= forward[0] * cameraMoveSpeed * timeSinceLastFrame
-        camera[1] -= forward[1] * cameraMoveSpeed * timeSinceLastFrame
-        camera[2] -= forward[2] * cameraMoveSpeed * timeSinceLastFrame
-    if pressed_keys[ord('e')]:
-        forward = camera_up(camera)
-        camera[0] += forward[0] * cameraMoveSpeed * timeSinceLastFrame
-        camera[1] += forward[1] * cameraMoveSpeed * timeSinceLastFrame
-        camera[2] += forward[2] * cameraMoveSpeed * timeSinceLastFrame
-    elif pressed_keys[ord('q')]:
-        forward = camera_up(camera)
-        camera[0] -= forward[0] * cameraMoveSpeed * timeSinceLastFrame
-        camera[1] -= forward[1] * cameraMoveSpeed * timeSinceLastFrame
-        camera[2] -= forward[2] * cameraMoveSpeed * timeSinceLastFrame
-
-    if pressed_keys[ord('1')]:
-        getObject("block").add_position(1* timeSinceLastFrame,0.0* timeSinceLastFrame,0.0* timeSinceLastFrame)
 def updateCursor():
     global mousePos
     global mouseChange
@@ -334,9 +321,44 @@ def updateCursor():
 def mouse_position():
     return pg.mouse.get_pos() + mouseOffset
 
-def updateCamera_freecam():
+def updateCamera_freecam(moveSpeed):
     global screenWidth
     global screenHeight
+
+    global camera
+    global timeSinceLastFrame
+
+    pressed_keys = pg.key.get_pressed()
+    if pressed_keys[ord('w')]:
+        forward = camera_forward(camera)
+        camera[0] += forward[0] * moveSpeed * timeSinceLastFrame
+        camera[1] += forward[1] * moveSpeed * timeSinceLastFrame
+        camera[2] += forward[2] * moveSpeed * timeSinceLastFrame
+    elif pressed_keys[ord('s')]:
+        forward = camera_forward(camera)
+        camera[0] -= forward[0] * moveSpeed * timeSinceLastFrame
+        camera[1] -= forward[1] * moveSpeed * timeSinceLastFrame
+        camera[2] -= forward[2] * moveSpeed * timeSinceLastFrame
+    if pressed_keys[ord('a')]:
+        forward = camera_right(camera)
+        camera[0] += forward[0] * moveSpeed * timeSinceLastFrame
+        camera[1] += forward[1] * moveSpeed * timeSinceLastFrame
+        camera[2] += forward[2] * moveSpeed * timeSinceLastFrame
+    elif pressed_keys[ord('d')]:
+        forward = camera_right(camera)
+        camera[0] -= forward[0] * moveSpeed * timeSinceLastFrame
+        camera[1] -= forward[1] * moveSpeed * timeSinceLastFrame
+        camera[2] -= forward[2] * moveSpeed * timeSinceLastFrame
+    if pressed_keys[ord('e')]:
+        forward = camera_up(camera)
+        camera[0] += forward[0] * moveSpeed * timeSinceLastFrame
+        camera[1] += forward[1] * moveSpeed * timeSinceLastFrame
+        camera[2] += forward[2] * moveSpeed * timeSinceLastFrame
+    elif pressed_keys[ord('q')]:
+        forward = camera_up(camera)
+        camera[0] -= forward[0] * moveSpeed * timeSinceLastFrame
+        camera[1] -= forward[1] * moveSpeed * timeSinceLastFrame
+        camera[2] -= forward[2] * moveSpeed * timeSinceLastFrame
 
     xChange = mouseChange[0]
     yChange = mouseChange[1]
@@ -344,15 +366,52 @@ def updateCamera_freecam():
     rotate_camera(camera,camera_up(camera),xChange * -0.001)
     rotate_camera(camera,camera_right(camera),yChange * 0.001)
 
-def updateCamera_firstPerson():
+def updateCamera_firstPerson(moveSpeed):
     global screenWidth
     global screenHeight
 
+    global camera
+    global cameraParent
+
+    global timeSinceLastFrame
+
+    if (cameraParent == None):
+        # no parent, no controller
+        return
+    
+    # movement 
+
+    rawF = camera_forward(camera)
+    f = subtract_3d(rawF, project_3d(rawF, np.asarray([0.0,1.0,0.0])))
+    r = camera_right(camera)
+
+    pressed_keys = pg.key.get_pressed()
+    if pressed_keys[ord('w')]:
+        cameraParent.add_position(f[0] * timeSinceLastFrame * moveSpeed,f[1] * timeSinceLastFrame * moveSpeed,f[2] * timeSinceLastFrame * moveSpeed)
+    elif pressed_keys[ord('s')]:
+        cameraParent.add_position(-f[0] * timeSinceLastFrame * moveSpeed,-f[1] * timeSinceLastFrame * moveSpeed,-f[2] * timeSinceLastFrame * moveSpeed)
+    if pressed_keys[ord('a')]:
+        cameraParent.add_position(r[0] * timeSinceLastFrame * moveSpeed,r[1] * timeSinceLastFrame * moveSpeed,r[2] * timeSinceLastFrame * moveSpeed)
+    elif pressed_keys[ord('d')]:
+        cameraParent.add_position(-r[0] * timeSinceLastFrame * moveSpeed,-r[1] * timeSinceLastFrame * moveSpeed,-r[2] * timeSinceLastFrame * moveSpeed)
+
+    # rotation
     xChange = mouseChange[0]
     yChange = mouseChange[1]
 
+    # you HAVEE to call camera_right() again to deal with the result of the first rotation
+    # otherwise, weird things happen that aren't fun
     rotate_camera(camera,np.asarray([0.0,1.0,0.0]),xChange * -0.001)
     rotate_camera(camera,camera_right(camera),yChange * 0.001)
+
+def resetCameraRotation():
+    camera[3] = 0.0
+    camera[4] = 0.0
+    camera[5] = 1.0
+
+    camera[6] = 0.0
+    camera[7] = 1.0
+    camera[8] = 0.0
 
 # ********   OBJECT functions:     ********
 
@@ -966,7 +1025,7 @@ def add_3d(a, b):
     return np.asarray([a[0] + b[0],a[1] + b[1], a[2] + b[2]])
 
 # subtract b from a 
-@njit()
+@njit
 def subtract_3d(a, b):
     return np.asarray([a[0] - b[0], a[1] - b[1], a[2] - b[2]])
 
@@ -1421,6 +1480,20 @@ class Model:
         self.up[1] = newUp[1]
         self.up[2] = newUp[2]
 
+    def get_forward(self):
+        return self.forward
+
+    def get_up(self):
+        return self.up
+
+    def get_right(self):
+        f = self.forward
+        u = self.up
+
+        crossProduct = normalize_3d(cross_3d(f, u))
+        
+        return np.asarray([-crossProduct[0],-crossProduct[1],-crossProduct[2]])
+
     def set_forward(self, v):
         appliedRotationAxis = normalize_3d(cross_3d(self.forward, v))
         appliedRotationAngle = angle_3d(self.forward, v)
@@ -1499,7 +1572,21 @@ def point_in_box_3d(point, boxCenter, boxSizes):
     else:
         return False
     
-# PROJECT VECTOR
+# project vector a onto vector b (3D)
+def project_3d(a,b):
+    bLength = length_3d(b)
+
+    coefficient = dot_3d(a,b) / (bLength * bLength)
+
+    return np.asarray([b[0] * coefficient,b[1] * coefficient,b[2] * coefficient])
+
+# project vector a onto vector b (2D)
+def project_2d(a,b):
+    bLength = length_2d(b)
+
+    coefficient = dot_2d(a,b) / (bLength * bLength)
+
+    return np.asarray(b[0] * coefficient,b[1] * coefficient)
     
 class Color:
     white = np.asarray([1,1,1]).astype('float32')
