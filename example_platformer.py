@@ -3,16 +3,21 @@ import numpy as np
 import pygame as pg
 from pg3d import Color
 
-# where the actual game-code is located
+# This is an example of how to use the PG3D engine to make a platformer.
+# Feel free to either use this script as a starting point for your own projects or start from scratch!
+# (make sure to read README.md for what functions to use when getting started from scratch)
 
+# This script is set up to call the main() function immediately (see the last line), and all code runs inside main().
 def main():
     # start the engine
     engine.init(100,75,800,600, 70)
 
-    # set the background color to blue
+    # You can change the background color of the game with this function:
     engine.setBackGroundColor(0,100,200)
-    # might disable this later
-    engine.disableBackfaceCulling()
+    # We're making it a fairly neutral blue color.
+    
+    # PG3D has backface culling enabled by default, so we don't need to change that.
+    # It also has the "texture" rendering mode on by default, which we want.
 
     # spawning a row of platforms
     platformCount = 5
@@ -38,6 +43,8 @@ def main():
         for event in pg.event.get():
             if event.type == pg.QUIT: running = False
             if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE: running = False
+
+            # jumping
             if event.type == pg.KEYDOWN and event.key == pg.K_SPACE: 
                 playerObj.add_position(0.0,0.1,0.0)
                 playerObj.add_velocity(0.0,10.0,0.0)

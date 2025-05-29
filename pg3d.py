@@ -5,6 +5,9 @@ import pygame as pg
 import numpy as np
 from numba import njit
 
+# just to keep track of things, not actually used in code
+version = "0.1"
+
 # these are the default values for the screen
 # they aren't gonna do anything, because the user passes their own values when they call init()
 screenWidth = 400
@@ -18,15 +21,20 @@ horizontalFOV = verticalFOV*screenWidth/screenHeight
 skyColor = np.asarray([0,0,0]).astype('uint8')
 
 # mouse shennanigans
-mouseChange = np.asarray([0.0,0.0])
-mousePos = np.asarray([0.0,0.0])
-mouseOffset = np.asarray([0.0,0.0])
+mouseChange = np.asarray([0.0,0.0]) # the change in the mouse since the last frame
+mousePos = np.asarray([0.0,0.0]) # the mouse position, equal to pg.mouse.get_pos()
 
+# an offset applied to the mouse position
+# this allows reading the mouse position to go beyond the limits of the screen, good for camera controllers
+mouseOffset = np.asarray([0.0,0.0]) 
+
+# the move speed of the camera, used in the moveCamera() func
 cameraMoveSpeed = 10
+# the rotate speed of the camera, used in camearaUpdate functions
 cameraRotateSpeed = 0.001
 
 # physics
-gravityCoefficient = 9.81
+gravityCoefficient = 9.81 # small g, the acceleration of gravity
 
 # clock stuff
 clock = pg.time.Clock()
@@ -35,11 +43,15 @@ timeSinceLastFrame = 0
 
 # the camera
 # position (x,y,z), forward (x,y,z), up (x,y,z)
+# the right vector is NOT defined/kept track of because it's unecessary, knowing the other two is enough
+# why is the right vector the one that's ommited? idk
 camera = np.asarray([0.0, 0.0, 0.0,       0.0, 0.0, 1.0,      0.0, 1.0, 0.0])
 
+# this amounts to nothing, because skybox rendering is not supported
 backgroundMode = "solid color"
 backGroundModes = ["solid color","skybox"]
 
+# this actually DOES change stuff, you can choose to show uv coords if you want to debug stuff
 renderingMode = "texture"
 # the color that the wireframe renderer uses
 # this is NOT passed into draw_triangle(), instead it can be set before calling
@@ -215,12 +227,13 @@ def getFrame():
 
     # draw the frame
     for model in Model._registry:
-        # this function will move the points so that they are centered around the camera
-        # basically, handling the camera position/rotation stuff
-        transform_points(model, model.points, camera)
-        # this function will project the triangles onto the screen, and draw them
-        draw_model(model, frame, model.points, model.triangles, camera, light_dir, z_buffer,
-                    model.texture_uv, model.texture_map, model.texture, model.color)
+        if (model.shouldBeDrawn):
+            # this function will move the points so that they are centered around the camera
+            # basically, handling the camera position/rotation stuff
+            transform_points(model, model.points, camera)
+            # this function will project the triangles onto the screen, and draw them
+            draw_model(model, frame, model.points, model.triangles, camera, light_dir, z_buffer,
+                        model.texture_uv, model.texture_map, model.texture, model.color)
     
     # skybox rendering is NOT SUPPORTED right now!!
     # if (backgroundMode == "skybox"):
@@ -1088,16 +1101,90 @@ def read_obj(fileName):
     
     return vertices, triangles, texture_uv, texture_map
 
+# based on who is in what level, update which models sould render and which should not
+# THE ENGINE DOES NOT LOOP THROUGH LEVELS, it just checks the shouldBeRendered var for each model
+# this is to avoid duplicate models, and performance loss
+def refreshRenderBooleans():
+    # loop through all levels, and set their object's boolean variables to the level's variable
+    for i in Level._registry:
+        for j in i.objectNames:
+            getObject(j).shouldBeDrawn = i.isActive
+
+    # "solo" objects will be left alone with whatever their variable is
+
+# if you don't want to call level.addObject() for whatever reason, here's another option
+def addObjectToLevel(object, levelName):
+    getLevel(levelName).addObject(object.name)
+
+# TODO: make sure levels don't have the same name!!
+# also some functions for advancing to the next level?
+
+# show ONE SPECIFIC LEVEL, hide all others
+def switchToLevel(levelName):
+    # hide any levels that don't match the name, show the one that does
+    for i in Level._registry:
+        if (i.name == levelName):
+            i.show()
+        else: 
+            i.hide()
+
+# create a new level with a name
+def createLevel(levelName):
+    Level(levelName, [])
+
+    # return a value so you can store the level class in a script
+    return getLevel(levelName)
+
+# same as above, but passing in an array of object names
+def createLevelWithobjects(levelName, objectNames):
+    Level(levelName, objectNames)
+
+    # return a value so you can store the level class in a script
+    return getLevel(levelName)
+
+# grab a level class using the name
+def getLevel(levelName):
+    for i in Level._registry:
+        if (i.name == levelName):
+            return i
+
 # I'm not implementing full object heirarchy (because of the transformation issues that that causes)
 # instead, objects are grouped into levels
 # you cannot move, rotate, or scale a level
 # but you can enable/disable them, which allows you to make a platformer or puzzle game or something with multiple stages
 # you spawn objects OUTSIDE of a level, just by calling the spawnObject() function
 # moving an object inside a level is just a matter of calling level.addObject(), passing in the object class
+
+# can you add one object to multiple levels? yes. not sure what to do abt that
 class Level:
+    _registry = []
+
+    # the name of the level
     name = ""
 
+    # the names of the objects in the level
     objectNames = []
+
+    # whether to render all the objects in the level
+    # the check against this variable is done inside of getFrame()
+
+    # DO NOT EDIT THIS MANUALLY, use the show() and hide() functions!
+    isActive = True
+
+    def __init__(self, name, objNames):
+        self.name = name
+        self.objectNames = objNames
+
+        # add to the universal list
+        self._registry.append(self)
+
+    def show(self):
+        self.isActive = True
+        refreshRenderBooleans()  # calling this function only when a change is made, for performance reasons
+
+    def hide(self):
+        self.isActive = False
+        refreshRenderBooleans() # calling this function only when a change is made, for performance reasons
 
     def addObject(self, objName):
         if (not array_has_item(self.objectNames, objName)):
@@ -1132,6 +1219,11 @@ class Model:
     rawMidpoint = np.asarray([0.0,0.0,0.0])
 
     color = np.asarray([0,0,0]).astype('uint8')
+    
+    # whether to render the object or not
+    # normally this is set through the level system, the object inherits the variable from the parent level
+    # IF THE OBJECT IS IN A LEVEL, you cannot manually enable/disable it BUT YOU CAN IF IT'S NOT IN A LEVEL by calling show()/hide()
+    shouldBeDrawn = True
 
     def __init__(self, name, path_obj, path_texture, tags, color):
         self.name = name
@@ -1159,6 +1251,12 @@ class Model:
         # for textured models, the color is multiplied by the texture
         # for colored models, the color applies to all geometry
         self.color = color
+
+    def show(self):
+        self.shouldBeDrawn = True
+
+    def hide(self):
+        self.shouldBeDrawn = False
 
     # given a point, find the closest point ON THIS OBJECT'S COLLIDER
     def closest_point(self, foreignPoint):
