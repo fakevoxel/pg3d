@@ -5,7 +5,7 @@ This is my implementation of a 3D rendering engine in python, using PyGame and N
 ### All information is as of version 0.1! Older/newer versions of this project may not agree with the README file.
 
 # How To Install:
-1. download the source code
+1. download the **v0.1.zip** file from the releases page
 2. copy the **pg3d.py** script, and the **assets** folder (these are assets that the engine needs to work), into your project
    (the **pg3d.py** script should be in the exact same directory as your game files so it can be imported properly)
    (the **example_platformer.py** script is not necessary, it's just an example script)
