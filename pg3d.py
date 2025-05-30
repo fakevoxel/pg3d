@@ -425,6 +425,34 @@ def spawnCube(x,y,z,tags):
 
     getObject(name).set_position(x,y,z)
 
+def getObjectIndex(name):
+    counter = 0
+    for i in Model._registry:
+        if (i.name == name):
+            return counter
+        counter += 1
+
+
+def destroyObject(objectName):
+    global cameraParent
+    global cameraLocalOffset
+
+    # not quite as simple as removing it from the registry, even though that's step 1
+    objIndex = getObjectIndex(objectName)
+    Model._registry.pop(objIndex)
+
+    # that's because some levels might still have a reference to the object
+    for i in Level._registry:
+        indexInLevel = index_in_array(i.objectNames, objectName)
+
+        if (indexInLevel != -1):
+            i.objectNames.pop(indexInLevel)
+        
+    # also, the camera parent might have a reference to it as well
+    if (cameraParent.name == objectName):
+        cameraParent = None
+        cameraLocalOffset = np.asarray([0.0,0.0,0.0])
+
 def spawnObjectWithTexture(objPath, texturePath, name, x, y, z, tags, color):
     if (getFirstIndex(name, '(') < len(name)): # object names may NOT have parentheses!
         return
@@ -465,8 +493,10 @@ def getObject(name):
     for i in Model._registry:
         if (i.name == name):
             return i
-    
-    return Model._registry[0]
+
+    # originally I had the model at index 0 as the null value
+    # I have since learned that python actually has a null type
+    return None
     
 def namesMatch(a,b):
     aOpenIndex = getFirstIndex(a, '(')
@@ -1366,7 +1396,7 @@ class Model:
         # add the position back
         return np.asarray([rotatedPoint[0] + worldSpaceMidpoint[0],rotatedPoint[1] + worldSpaceMidpoint[1],rotatedPoint[2] + worldSpaceMidpoint[2]])
     
-    def is_point_inside(self, foreignPoint):
+    def is_point_inside(self, foreignPoint, bounds):
         rmpoint= self.midpoint()
         worldSpaceMidpoint = np.asarray([rmpoint[3],rmpoint[4],rmpoint[5]])
         localPoint = np.asarray([foreignPoint[0] - worldSpaceMidpoint[0],foreignPoint[1] - worldSpaceMidpoint[1],foreignPoint[2] - worldSpaceMidpoint[2]])
@@ -1387,9 +1417,7 @@ class Model:
         if upRotationAngle > 0:
             rotatedPoint = rotate_vector_3d(rotatedPoint, upRotationAxis, upRotationAngle)
 
-        colliderBounds = self.data["collider_bounds"]
-
-        return point_in_box_3d(rotatedPoint,np.asarray([0.0,0.0,0.0]),colliderBounds)
+        return point_in_box_3d(rotatedPoint,np.asarray([0.0,0.0,0.0]),bounds)
         
         # there's no reason to un-transform the point, we're only trying to find whether its in the box
 
@@ -1429,14 +1457,19 @@ class Model:
         possibleObjects = getObjectsWithTag("interact")
 
         # loop through each, and check to see if the closest point on their collider
+        for i in possibleObjects:
+            if (self.is_point_inside(i.position, self.data["trigger_bounds"])):
+                return True
+            
+        return False
 
-    def add_collider(self,boundsX,boundsY,boundsZ):
-        self.add_tag("collider")
+    def add_box_collider(self,boundsX,boundsY,boundsZ):
+        self.add_tag("box_collider")
 
         self.add_data("collider_bounds", np.asarray([boundsX,boundsY,boundsZ]))
 
-    def add_trigger(self,boundsX,boundsY,boundsZ):
-        self.add_tag("trigger")
+    def add_box_trigger(self,boundsX,boundsY,boundsZ):
+        self.add_tag("box_trigger")
 
         self.add_data("trigger_bounds", np.asarray([boundsX,boundsY,boundsZ]))
 
@@ -1551,6 +1584,15 @@ def array_has_item(array, item):
             return True
         
     return False
+
+def index_in_array(array, item):
+    counter = 0
+    for i in array:
+        if (i == item):
+            return counter
+        counter += 1
+        
+    return -1
 
 # the box's bounds represent SIZE, NOT EXTENTS
 def clamp_box_3d(point, boxCenter, boxSizes):

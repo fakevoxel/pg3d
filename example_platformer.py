@@ -9,25 +9,39 @@ from pg3d import Color
 
 # This script is set up to call the main() function immediately (see the last line), and all code runs inside main().
 def main():
-    # start the engine
+    # Always start the engine by calling pg3d.init(). Pass in the render resolution, screen resolution, and VERTICAL fov.
     engine.init(200,150,800,600, 70)
 
     # You can change the background color of the game with this function:
     engine.setBackGroundColor(0,100,200)
     # We're making it a fairly neutral blue color.
     
-    # PG3D has backface culling enabled by default, so we don't need to change that.
+    # PG3D has backface culling enabled by default, we want to change that so that coins and collectibles render from both sides.
+    engine.disableBackfaceCulling()
     # It also has the "texture" rendering mode on by default, which we want.
+
+    # Something to note: objects cannot have the same name!
 
     # spawning a row of platforms
     platformCount = 5
     for i in range(platformCount):
-        engine.spawnObjectWithTexture('3d models/platform.obj','3d models/platform_texture.png',"platform" + str(i+1), 0.0 + i * 15,0.0,0.0, ["box_collider"], Color.green)
-        engine.getObject("platform" + str(i+1)).add_data("collider_bounds",np.asarray([10.0,1.0,10.0]))
+        engine.spawnObjectWithTexture('3d models/platform/platform.obj','3d models/platform/platform_texture.png',"platform" + str(i+1), 0.0 + i * 15,0.0,0.0, [], Color.green)
+        engine.getObject("platform" + str(i+1)).add_box_collider(10.0,1.0,10.0)
         engine.getObject("platform" + str(i+1)).set_scale(5.0,1.0,5.0)
 
-    engine.spawnCube(0.0, 5.0, 0.0, ["physics","box_collider"])
-    engine.getObject("cube").add_data("collider_bounds",np.asarray([2.0,2.0,2.0]))
+    engine.spawnObjectWithTexture('3d models/coin/coin.obj','3d models/coin/coin_texture.png',"coin", 0.0 + 15 * 4,2.0,0.0, [], Color.white)
+    engine.getObject("coin").set_scale(2,2,2)
+    # add a trigger so that we can detect when the coin is picked up
+    engine.getObject("coin").add_box_trigger(2.0,2.0,2.0)
+
+    # interact tag so it works with trigger colliders
+    engine.spawnCube(0.0, 50.0, 0.0, ["physics","interact"])
+    engine.getObject("cube").add_box_collider(2.0,2.0,2.0)
+
+    # For the player object, we want it to be invisible so it doesn't block the camera.
+    # It's possible to do this by giving it an all-black texture, which the game treats as transparent,
+    # but for performance reasons it's better to just call hide() on the object.
+    engine.getObject("cube").hide()
 
     engine.parentCamera("cube",0.0,4.0,0.0)
 
@@ -50,13 +64,23 @@ def main():
                 playerObj.add_position(0.0,0.1,0.0)
                 playerObj.add_velocity(0.0,10.0,0.0)
 
+        # (annoyingly) MUST CALL update() AFTER getFrame() and drawScreen()!
+        # also, I'm pretty sure, call it befwore any camera update functions
+        engine.update()
+
+        # make sure there actually IS a coin
+        if (engine.getObject("coin") != None):
+            engine.getObject("coin").rotate(np.asarray([0.0,1.0,0.0]),0.1)
+
+            if (engine.getObject("coin").is_triggered()):
+                engine.setBackGroundColor(255,255,255)
+                # we picked up the coin, so remove it
+                engine.destroyObject("coin")
+
         # A lot of games use a first person camera controller, so PG3D has that as a built-in feature.
         # All you have to do is parent the camera to an object (the object represents the player) which we did above,
         # and then call updateCamera_firstPerson() to handle movement and all that.
-        engine.updateCamera_firstPerson(4)
-
-        # (annoyingly) MUST CALL update() AFTER getFrame() and drawScreen()!
-        engine.update()
+        engine.updateCamera_firstPerson(10)
 
     engine.quit()
 
