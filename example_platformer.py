@@ -20,6 +20,9 @@ def main():
     engine.disableBackfaceCulling()
     # It also has the "texture" rendering mode on by default, which we want.
 
+    level1 = engine.createLevel("1")
+    level2 = engine.createLevel("2")
+
     # Something to note: objects cannot have the same name!
 
     # spawning a row of platforms
@@ -28,6 +31,11 @@ def main():
         engine.spawnObjectWithTexture('3d models/platform/platform.obj','3d models/platform/platform_texture.png',"platform" + str(i+1), 0.0 + i * 15,0.0,0.0, [], Color.green)
         engine.getObject("platform" + str(i+1)).add_box_collider(10.0,1.0,10.0)
         engine.getObject("platform" + str(i+1)).set_scale(5.0,1.0,5.0)
+
+        if (i < 3):
+            level1.addObject("platform" + str(i+1))
+        else:
+            level2.addObject("platform" + str(i+1))
 
     engine.spawnObjectWithTexture('3d models/coin/coin.obj','3d models/coin/coin_texture.png',"coin", 0.0 + 15 * 4,2.0,0.0, [], Color.white)
     engine.getObject("coin").set_scale(2,2,2)
@@ -61,8 +69,9 @@ def main():
 
             # jumping
             if event.type == pg.KEYDOWN and event.key == pg.K_SPACE: 
-                playerObj.add_position(0.0,0.1,0.0)
-                playerObj.add_velocity(0.0,10.0,0.0)
+                if (playerObj.is_colliding()):
+                    playerObj.add_position(0.0,0.1,0.0)
+                    playerObj.add_velocity(0.0,10.0,0.0)
 
         # (annoyingly) MUST CALL update() AFTER getFrame() and drawScreen()!
         # also, I'm pretty sure, call it befwore any camera update functions

@@ -206,6 +206,9 @@ def update():
                 if (j.name == i.name):
                     continue
 
+                if (not j.shouldBePhysics):
+                    continue
+
                 closestPointOnOther = j.closest_point(worldSpaceMidpoint)
 
                 closestPointOnThis = i.closest_point(closestPointOnOther)
@@ -266,7 +269,7 @@ def getFrame():
     return frame
 
 # skybox is not supported (or finished) because it's laggy!
-@njit
+@njit()
 def draw_skybox(frame,z_buffer):
     for x in range(screenWidth):
         for y in range(screenHeight):
@@ -551,7 +554,7 @@ def draw_circle(frameArray, xPos, yPos, radius, color):
 
 # ********  drawing functions! (the annoying stuff)       ********
 
-@njit
+@njit()
 def rotate_point_3d(vector, axis, angle):
     # rotate around x axis
     i = np.asarray([0.0,0.0,0.0,0.0,0.0,0.0])
@@ -924,7 +927,7 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
         #  we do nothing if the triangle is all behind (state == 1), we just skip those
 
 # z-buffering NOT used for wireframe, it is for the others though
-@njit
+@njit()
 def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2, renderMode, color):
     global screenWidth
     global screenHeight
@@ -982,7 +985,7 @@ def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, 
                             # z buffer stores values of 1 / z
                             z_buffer[x, y] = z
 
-@njit
+@njit()
 def clamp(val, lower, upper):
     return min(max(val, lower), upper)
 
@@ -1198,6 +1201,7 @@ def refreshRenderBooleans():
     for i in Level._registry:
         for j in i.objectNames:
             getObject(j).shouldBeDrawn = i.isActive
+            getObject(j).shouldBePhysics = i.isActive
 
     # "solo" objects will be left alone with whatever their variable is
 
@@ -1216,6 +1220,25 @@ def switchToLevel(levelName):
             i.show()
         else: 
             i.hide()
+
+def switchToNextLevel():
+    # finding the level that's loaded currently
+    counter = 0
+    loadedLevelIndex = -1
+    for i in Level._registry:
+        if (i.isActive):
+            if (loadedLevelIndex != -1):
+                return # if multiple levels are loaded, we have no idea what the next one is so do nothing
+            
+            loadedLevelIndex = counter
+            i.hide()
+            # no break statement here, because we need to check for multiple levels
+        else:
+            if (counter != -1):
+                i.show()
+                return
+        
+        counter += 1
 
 # create a new level with a name
 def createLevel(levelName):
@@ -1314,6 +1337,8 @@ class Model:
     # IF THE OBJECT IS IN A LEVEL, you cannot manually enable/disable it BUT YOU CAN IF IT'S NOT IN A LEVEL by calling show()/hide()
     shouldBeDrawn = True
 
+    shouldBePhysics = True
+
     def __init__(self, name, path_obj, path_texture, tags, color):
         self.name = name
 
@@ -1346,6 +1371,12 @@ class Model:
 
     def hide(self):
         self.shouldBeDrawn = False
+
+    def disablePhysicsInteraction(self):
+        self.shouldBePhysics = False
+
+    def enablePhysicsInteraction(self):
+        self.shouldBePhysics = True
 
     # given a point, find the closest point ON THIS OBJECT'S COLLIDER
     def closest_point(self, foreignPoint):
@@ -1449,6 +1480,34 @@ class Model:
 
     # when messing with models, please use the functions and don't mess with the variables themselves!
 
+    def is_colliding(self):
+        collidersInScene = getObjectsWithTag("box_collider")
+
+        # this comes out as a point (x,y,z) (x transformed, y transformed, z transformed)
+        # it's in world space!
+        returnMidpoint = self.midpoint()
+        worldSpaceMidpoint = np.asarray([returnMidpoint[3],returnMidpoint[4],returnMidpoint[5]])
+
+        for j in collidersInScene:
+
+            # don't do anything if talking about the same object
+            if (j.name == self.name):
+                continue
+
+            if (not j.shouldBePhysics):
+                continue
+
+            closestPointOnOther = j.closest_point(worldSpaceMidpoint)
+
+            closestPointOnThis = self.closest_point(closestPointOnOther)
+
+            if (length_3d(subtract_3d(closestPointOnOther, closestPointOnThis)) < 0.01):
+                # this code only runs if the two points are the same (which happens if there's an intersection)
+
+                return True
+            
+        return False
+
     def is_triggered(self):
         # assuming there IS actually a trigger collider when this function is called
         
@@ -1458,6 +1517,9 @@ class Model:
 
         # loop through each, and check to see if the closest point on their collider
         for i in possibleObjects:
+            if (not i.shouldBePhysics):
+                    continue
+            
             if (self.is_point_inside(i.position, self.data["trigger_bounds"])):
                 return True
             
