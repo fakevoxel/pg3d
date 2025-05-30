@@ -4,8 +4,24 @@ This is my implementation of a 3D rendering engine in python, using PyGame and N
 
 ### All information is as of version 0.1! Older/newer versions of this project may not agree with the README file.
 
+# REQUIREMENTS:
+For PG3D to run properly, you need the following:
+(all versions here are the ones that have been tested, not necessarily the only ones that work)
+
+- an up-to-date c++ installation (download from microsoft here: https://learn.microsoft.com/en-us/cpp/windows/latest-supported-vc-redist?view=msvc-170)
+(despite this being written in python, you need c++ because numba/numpy use c++)
+- pygame 2.6.1 or newer (tested with 2.6.1)
+(type "pip install pygame" in a terminal to install)
+- numba 0.61.2 or newer (tested with 0.61.2)
+(type "pip install numba" in a terminal to install)
+- python 3.13 or newer (tested with 3.13.2)
+- llvmlite 0.44.0 or newer (tested with 0.44.0)
+(should be installed along with numba, double check the terminal output to make sure or type "pip list" to see all installed pip packages)
+
+If you find other versions that work, or ones that don't, post an issue here on the github with the "compatibility" tag!
+
 # How To Install:
-1. download the source code
+1. download the **v0.1.zip** file from the releases page
 2. copy the **pg3d.py** script, and the **assets** folder (these are assets that the engine needs to work), into your project
    (the **pg3d.py** script should be in the exact same directory as your game files so it can be imported properly)
    (the **example_platformer.py** script is not necessary, it's just an example script)
