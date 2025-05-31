@@ -50,8 +50,10 @@ If you find other versions that work, or ones that don't, post an issue here on 
 # Features:
 - textured .obj file rendering
 - camera system
-- basic object management
+- built-in player controller (pg3d.updateCamera_firstPerson())
+- basic object management (creation, destruction, transformation)
 - box colliders
+- trigger colliders
 - (somewhat janky) physics engine
 
 # Gallery:
