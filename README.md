@@ -2,7 +2,7 @@
 
 This is my implementation of a 3D rendering engine in python, using PyGame and Numba (Numba is necessary in order to speed up the rendering functions).
 
-### All information is as of version 0.1! Older/newer versions of this project may not agree with the README file.
+### All information is as of version 0.1.1! Older/newer versions of this project may not agree with the README file.
 
 # REQUIREMENTS:
 For PG3D to run properly, you need the following:
