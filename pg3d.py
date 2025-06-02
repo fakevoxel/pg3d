@@ -4,6 +4,7 @@
 import pygame as pg
 import numpy as np
 from numba import njit
+import random
 
 # just to keep track of things, not actually used in code
 version = "0.1"
@@ -179,7 +180,10 @@ def update():
 
     if (physicsEnabled):
         for i in getObjectsWithTag("physics"):
-            i.add_velocity(0.0,-1.0 * timeSinceLastFrame * gravityCoefficient, 0.0)
+            # objects can have physics, but still not have gravity applied
+            # they have to have the gravity tag as well, for gravity
+            if (i.hasTag("gravity")):
+                i.add_velocity(0.0,-1.0 * timeSinceLastFrame * gravityCoefficient, 0.0)
 
             # collision logic
 
@@ -419,8 +423,6 @@ def resetCameraRotation():
     camera[7] = 1.0
     camera[8] = 0.0
 
-# ********   OBJECT functions:     ********
-
 def setBackGroundColor(r,g,b):
     global skyColor
     skyColor = np.asarray([r/255,g/255,b/255])
@@ -430,11 +432,46 @@ def setBackGroundColor(r,g,b):
             texColor = sky_texture[x,y]
             sky_texture[x,y] = np.asarray([texColor[0] * skyColor[0], texColor[1] * skyColor[1], texColor[2] * skyColor[2]])
 
+# ********   OBJECT functions:     ********
+
+# ********   cube:     ********
 def spawnCube(x,y,z,tags):
     name = nameModel("cube")
     Model(name,'assets/cube.obj', 'assets/grid_16.png',tags, Color.white)
 
     getObject(name).set_position(x,y,z)
+def spawnScaledCube(x,y,z,sx,sy,sz,tags):
+    name = nameModel("cube")
+    Model(name,'assets/cube.obj', 'assets/grid_16.png',tags, Color.white)
+
+    getObject(name).set_position(x,y,z)
+    getObject(name).set_scale(sx,sy,sz)
+
+# ********   plane:     ********
+def spawnPlane(x,y,z,tags):
+    name = nameModel("plane")
+    Model(name,'assets/cube.obj', 'assets/grid_16.png',tags, Color.white)
+
+    getObject(name).set_position(x,y,z)
+def spawnScaledPlane(x,y,z,sx,sy,sz,tags):
+    name = nameModel("plane")
+    Model(name,'assets/plane.obj', 'assets/grid_16.png',tags, Color.white)
+
+    getObject(name).set_position(x,y,z)
+    getObject(name).set_scale(sx,sy,sz)
+
+# ********   sphere:     ********
+def spawnSphere(x,y,z,tags):
+    name = nameModel("sphere")
+    Model(name,'assets/sphere.obj', 'assets/grid_16.png',tags, Color.white)
+
+    getObject(name).set_position(x,y,z)
+def spawnScaledSphere(x,y,z,sx,sy,sz,tags):
+    name = nameModel("sphere")
+    Model(name,'assets/sphere.obj', 'assets/grid_16.png',tags, Color.white)
+
+    getObject(name).set_position(x,y,z)
+    getObject(name).set_scale(sx,sy,sz)
 
 def getObjectIndex(name):
     counter = 0
@@ -707,24 +744,6 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
         
         triangle = triangles[index]
 
-        # Use Cross-Product to get surface normal
-        # as said above, this is relative to the camera
-        vet1 = np.asarray([points[triangle[1]][3]  - points[triangle[0]][3],points[triangle[1]][4]  - points[triangle[0]][4],points[triangle[1]][5]  - points[triangle[0]][5]])
-        vet2 = np.asarray([points[triangle[2]][3]  - points[triangle[0]][3],points[triangle[2]][4]  - points[triangle[0]][4],points[triangle[2]][5]  - points[triangle[0]][5]])
-
-        # camera relative normal vector
-        # it's not a unit vector! it will have magnitude of sin(theta)
-        normal = np.cross(vet1, vet2)
-
-        # backface culling !!!
-        if (backfaceCulling):
-            normalLength = np.sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2])
-
-            v1 = np.asarray([normal[0]/normalLength,normal[1]/normalLength,normal[2]/normalLength])
-            v2 = np.asarray([0.0,0.0,1.0])
-            if ((v1[0] * v2[0] + v1[1] * v2[1] + v1[2] * v2[2]) > 0.5):
-                continue
-
         # ******* STEP 1: *******
         # we have to figure out which triangles are behind the camera, in front of the camera, or both (some verts behind, some in front)
 
@@ -760,7 +779,7 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
             minY = np.min([projpoints[0][7],projpoints[1][7],projpoints[2][7]])
             maxY = np.max([projpoints[0][7],projpoints[1][7],projpoints[2][7]])
 
-            draw_triangle(frame, z_buffer, texture, projpoints, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2,renderingMode, color)
+            draw_triangle(frame, z_buffer, texture, projpoints, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2,renderingMode, np.asarray([0,255,0]), backfaceCulling)
         elif(triangleState == 2):
             # here, the triangle is both behind and in front, and we need to clip it
 
@@ -828,18 +847,18 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
 
                 # here is our triangle as-is
                 p1 = np.asarray([goodVertices[0][3],goodVertices[0][4],goodVertices[0][5]])
-                p2 = np.asarray([problemVertices[0][3],problemVertices[0][4],problemVertices[0][5]])
-                p3 = np.asarray([problemVertices[1][3],problemVertices[1][4],problemVertices[1][5]])
+                p2 = np.asarray([problemVertices[1][3],problemVertices[1][4],problemVertices[1][5]])
+                p3 = np.asarray([problemVertices[0][3],problemVertices[0][4],problemVertices[0][5]])
 
                 parameter = (0.01 - p2[2]) / (p1[2] - p2[2])
                 intersect1 = add_3d(p2, np.asarray([(p1[0]-p2[0]) * parameter,(p1[1]-p2[1]) * parameter,(p1[2]-p2[2]) * parameter]))
                 goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
-                goodUV.append(np.asarray([problemUV[0][0] + (goodUV[0][0] - problemUV[0][0]) * parameter, problemUV[0][1] + (goodUV[0][1] - problemUV[0][1]) * parameter]))
+                goodUV.append(np.asarray([problemUV[1][0] + (goodUV[0][0] - problemUV[1][0]) * parameter, problemUV[1][1] + (goodUV[0][1] - problemUV[1][1]) * parameter]))
 
                 parameter = (0.01 - p3[2]) / (p1[2] - p3[2])
                 intersect1 = add_3d(p3, np.asarray([(p1[0]-p3[0]) * parameter,(p1[1]-p3[1]) * parameter,(p1[2]-p3[2]) * parameter]))
                 goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
-                goodUV.append(np.asarray([problemUV[1][0] + (goodUV[0][0] - problemUV[1][0]) * parameter, problemUV[1][1] + (goodUV[0][1] - problemUV[1][1]) * parameter]))
+                goodUV.append(np.asarray([problemUV[0][0] + (goodUV[0][0] - problemUV[0][0]) * parameter, problemUV[0][1] + (goodUV[0][1] - problemUV[0][1]) * parameter]))
 
                 # the good vertices array will have items with ONLY SIX VALUES, representing the cam-relative points and then the projected points
                 # however, right now the projected part is all zeros
@@ -870,7 +889,7 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
 
                 # now that we have our three triangle points (not behind the camera anymore), we can draw them
 
-                draw_triangle(frame, z_buffer, texture, goodVertices, goodUV, minX, maxX, minY, maxY, text_size, z0, z1, z2,renderingMode, color)
+                draw_triangle(frame, z_buffer, texture, goodVertices, goodUV, minX, maxX, minY, maxY, text_size, z0, z1, z2,renderingMode, np.asarray([0,0,255]), backfaceCulling)
             elif (len(problemVertices) == 1):
                 # here only one vertex is an issue
                 # the procedure is similar, but we end up with two triangles
@@ -900,8 +919,8 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
 
                 # this is where we have to turn our array of four points into two triangles
 
-                good1 = np.asarray([goodVertices[0],goodVertices[1],goodVertices[2]])
-                good2 = np.asarray([goodVertices[1],goodVertices[3],goodVertices[2]])
+                good1 = np.asarray([goodVertices[0],goodVertices[2],goodVertices[1]])
+                good2 = np.asarray([goodVertices[1],goodVertices[2],goodVertices[3]])
 
                 # the bounding box that the triangle occupies
                 minX1 = np.min([good1[0][6],good1[1][6],good1[2][6]])
@@ -925,27 +944,22 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
                 z12 = 1 / good2[1][8]
                 z22 = 1 / good2[2][8]
 
-                uv1 = np.asarray([goodUV[0] * z01,goodUV[1] * z11,goodUV[2] * z21])
-                uv2 = np.asarray([goodUV[1] * z02,goodUV[3] * z12,goodUV[2] * z22])
+                uv1 = np.asarray([goodUV[0] * z01,goodUV[2] * z11,goodUV[1] * z21])
+                uv2 = np.asarray([goodUV[1] * z02,goodUV[2] * z12,goodUV[3] * z22])
 
-                draw_triangle(frame, z_buffer, texture, good1, uv1, minX1, maxX1, minY1, maxY1, text_size, z01, z11, z21,renderingMode, color)
-                draw_triangle(frame, z_buffer, texture, good2, uv2, minX2, maxX2, minY2, maxY2, text_size, z02, z12, z22,renderingMode, color)
+                draw_triangle(frame, z_buffer, texture, good1, uv1, minX1, maxX1, minY1, maxY1, text_size, z01, z11, z21,renderingMode, np.asarray([255,0,0]), backfaceCulling)
+                draw_triangle(frame, z_buffer, texture, good2, uv2, minX2, maxX2, minY2, maxY2, text_size, z02, z12, z22,renderingMode, np.asarray([255,0,0]), backfaceCulling)
 
 
         #  we do nothing if the triangle is all behind (state == 1), we just skip those
 
 # z-buffering NOT used for wireframe, it is for the others though
 @njit()
-def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2, renderMode, color):
+def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2, renderMode, color, cullBack):
     global screenWidth
     global screenHeight
 
     global wireframeColor
-
-    # barycentric denominator, based on https://codeplea.com/triangular-interpolation
-    # this will come into play when calculating the texture coordinates, and depth at the current pixel
-    denominator = 1 / ((proj_points[1][7] - proj_points[2][7])*(proj_points[0][6] - proj_points[2][6]) +
-    (proj_points[2][6] - proj_points[1][6])*(proj_points[0][7] - proj_points[2][7]) + 1e-32)
     
     # looping through every pixel in the bounding box that the triangle represents
     # we limit this box to the edges of the screen, because we don't care about anything else
@@ -953,22 +967,37 @@ def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, 
     # because of these restrictions we don't need any further checks for making sure the x and y are valid
     for y in range(max(minY, 0), min(maxY, screenHeight)):
         for x in range(max(minX, 0), min(maxX, screenWidth)):
+            apx = x - proj_points[0][6]
+            apy = y - proj_points[0][7]
+            
+            bpx = x - proj_points[1][6]
+            bpy = y - proj_points[1][7]
+            
+            cpx = x - proj_points[2][6]
+            cpy = y - proj_points[2][7]
 
-            # barycentric weights
-            w0 = ((proj_points[1][7]-proj_points[2][7])*(x - proj_points[2][6]) + (proj_points[2][6]-proj_points[1][6])*(y - proj_points[2][7]))*denominator
-            w1 = ((proj_points[2][7]-proj_points[0][7])*(x - proj_points[2][6]) + (proj_points[0][6]-proj_points[2][6])*(y - proj_points[2][7]))*denominator
-            w2 = 1 - w0 - w1
+            # (y, -x) for c 90 deg rotation
+            dotab = apx * (proj_points[1][7] - proj_points[0][7]) + apy * -(proj_points[1][6] - proj_points[0][6])
+            dotbc = bpx * (proj_points[2][7] - proj_points[1][7]) + bpy * -(proj_points[2][6] - proj_points[1][6])
+            dotca = cpx * (proj_points[0][7] - proj_points[2][7]) + cpy * -(proj_points[0][6] - proj_points[2][6])
 
-            if (renderMode == "wireframe"):
-                if (w0 < 0 or w1 < 0 or w2 < 0):
-                    continue
-
-                if (np.abs(w0*z0) < 0.0001 or np.abs(w1*z1) < 0.0001 or np.abs(w2*z2) < 0.0001):
-                        frame[x, y] = wireframeColor
+            # line segments: 0 -> 1,    1 -> 2,        2 -> 0
+            if ((dotab > 0) and (dotbc > 0) and (dotca > 0)):
+                inTriangle = True
+            elif ((dotab < 0) and (dotbc < 0) and (dotca < 0)):
+                inTriangle = True
             else:
-                # if any weight is negative, we're outside the triangle and so we won't do anything
-                if (w0 < 0 or w1 < 0 or w2 < 0):
-                    continue
+                inTriangle = False
+
+            if (inTriangle):
+                a0 = dotbc / 2
+                a1 = dotca / 2
+                a2 = dotab / 2
+                
+                invAreaSum = 1 / (a0 + a1 + a2)
+                w0 = a0 * invAreaSum
+                w1 = a1 * invAreaSum
+                w2 = a2 * invAreaSum
 
                 # sinze z0,z1, and z2 are all 1/z at some point, this value will also be 1 / z
                 z = w0*z0 + w1*z1 + w2*z2
@@ -980,7 +1009,7 @@ def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, 
                 if z > z_buffer[x, y] and min(u,v) >= 0 and max(u,v) <= 1:
                     # showing the u and v coords as a color, not the actual texture just yet
                     if (renderMode == "uv"):
-                        frame[x, y] = np.asarray([u*255,v*255,0]).astype('uint8')
+                        frame[x, y] = color
 
                         # z buffer stores values of 1 / z
                         z_buffer[x, y] = z
@@ -1267,7 +1296,114 @@ def getLevel(levelName):
     for i in Level._registry:
         if (i.name == levelName):
             return i
+    
+def array_has_item(array, item):
+    for i in array:
+        if (i == item):
+            return True
+        
+    return False
 
+def index_in_array(array, item):
+    counter = 0
+    for i in array:
+        if (i == item):
+            return counter
+        counter += 1
+        
+    return -1
+
+# the box's bounds represent SIZE, NOT EXTENTS
+def clamp_box_3d(point, boxCenter, boxSizes):
+    newX = min(max(point[0], boxCenter[0] - boxSizes[0]/2), boxCenter[0] + boxSizes[0]/2)
+    newY = min(max(point[1], boxCenter[1] - boxSizes[1]/2), boxCenter[1] + boxSizes[1]/2)
+    newZ = min(max(point[2], boxCenter[2] - boxSizes[2]/2), boxCenter[2] + boxSizes[2]/2)
+
+    return np.asarray([newX,newY,newZ])
+
+# I don't like typing out the np.asarray([]) function, so this one makes colors a bit less verbose
+def constructColor(r,g,b):
+    return np.asarray([r,g,b]).astype('uint8')
+
+# whether a point is in an AABB (axis aligned bounding box)
+# again, the sizes are SIZES, NOT EXTENTS in each direction
+def point_in_box_3d(point, boxCenter, boxSizes):
+    if (point[0] > boxCenter[0] - boxSizes[0]/2 and point[1] > boxCenter[1] - boxSizes[1]/2 and point[2] > boxCenter[2] - boxSizes[2]/2 and point[0] < boxCenter[0] + boxSizes[0]/2 and point[1] < boxCenter[1] + boxSizes[1]/2 and point[2] < boxCenter[2] + boxSizes[2]/2):
+        return True
+    else:
+        return False
+    
+# project vector a onto vector b (3D)
+def project_3d(a,b):
+    bLength = length_3d(b)
+
+    coefficient = dot_3d(a,b) / (bLength * bLength)
+
+    return np.asarray([b[0] * coefficient,b[1] * coefficient,b[2] * coefficient])
+
+# project vector a onto vector b (2D)
+def project_2d(a,b):
+    bLength = length_2d(b)
+
+    coefficient = dot_2d(a,b) / (bLength * bLength)
+
+    return np.asarray(b[0] * coefficient,b[1] * coefficient)
+    
+class Color:
+    white = np.asarray([1,1,1]).astype('float32')
+
+    red = np.asarray([1,0,0]).astype('float32')
+    green = np.asarray([0,1,0]).astype('float32')
+    blue = np.asarray([0,0,1]).astype('float32')
+
+    yellow = np.asarray([1,1,0]).astype('float32')
+    cyan = np.asarray([0,1,1]).astype('float32')
+    magenta = np.asarray([1,0,1]).astype('float32')
+
+    orange = np.asarray([1,0.592156862745098,0.1882352941176471]).astype('float32')
+
+class Vector3:
+    one = np.asarray([1.0,1.0,1.0])
+    zero = np.asarray([0.0,0.0,0.0])
+
+    forward = np.asarray([0.0,0.0,1.0])
+    backward = np.asarray([0.0,0.0,-1.0])
+
+    # left is positive, because PG3D uses a left-handed coordinate system
+    left = np.asarray([1.0,0.0,0.0])
+    right = np.asarray([-1.0,0.0,0.0])
+
+    up = np.asarray([0.0,1.0,0.0])
+    down = np.asarray([0.0,-1.0,0.0])
+
+    def new(x,y,z):
+        return np.asarray(x,y,z)
+    
+class Vector2:
+
+    one = np.asarray([1.0,1.0])
+    zero = np.asarray([0.0,0.0])
+ 
+    # in 3D it's left = positive, but here it's right = positive
+    # why? idk
+    left = np.asarray([-1.0,0.0])
+    right = np.asarray([1.0,0.0])
+
+    up = np.asarray([0.0,1.0])
+    down = np.asarray([0.0,-1.0])
+
+    def new(x,y):
+        return np.asarray(x,y) 
+    
+# generates a string of random number characters of a given length
+def random_number_string(length):
+    toReturn = ""
+
+    for i in range(length):
+        toReturn += str(random.randint(0, 9))
+
+    return toReturn
+    
 # I'm not implementing full object heirarchy (because of the transformation issues that that causes)
 # instead, objects are grouped into levels
 # you cannot move, rotate, or scale a level
@@ -1647,68 +1783,24 @@ class Model:
         point[5] += self.position[2]
 
         return point
-    
-def array_has_item(array, item):
-    for i in array:
-        if (i == item):
-            return True
-        
-    return False
 
-def index_in_array(array, item):
-    counter = 0
-    for i in array:
-        if (i == item):
-            return counter
-        counter += 1
-        
-    return -1
+# TODO: the entire particle system
 
-# the box's bounds represent SIZE, NOT EXTENTS
-def clamp_box_3d(point, boxCenter, boxSizes):
-    newX = min(max(point[0], boxCenter[0] - boxSizes[0]/2), boxCenter[0] + boxSizes[0]/2)
-    newY = min(max(point[1], boxCenter[1] - boxSizes[1]/2), boxCenter[1] + boxSizes[1]/2)
-    newZ = min(max(point[2], boxCenter[2] - boxSizes[2]/2), boxCenter[2] + boxSizes[2]/2)
+# basically the way i'm doing the particle system is this:
 
-    return np.asarray([newX,newY,newZ])
+# particle managers control the spawning/transforming/deleting of the objects in a particle system
+# each manager has a hashcode, which is applied as a tag to the objects it controls so everyone knows what belongs to what
 
-# I don't like typing out the np.asarray([]) function, so this one makes colors a bit less verbose
-def constructColor(r,g,b):
-    return np.asarray([r,g,b]).astype('uint8')
+# particle managers are NOT objects, and DO NOT CORRESPOND to an object! they are separate and held in a separate list!
 
-# whether a point is in an AABB (axis aligned bounding box)
-# again, the sizes are SIZES, NOT EXTENTS in each direction
-def point_in_box_3d(point, boxCenter, boxSizes):
-    if (point[0] > boxCenter[0] - boxSizes[0]/2 and point[1] > boxCenter[1] - boxSizes[1]/2 and point[2] > boxCenter[2] - boxSizes[2]/2 and point[0] < boxCenter[0] + boxSizes[0]/2 and point[1] < boxCenter[1] + boxSizes[1]/2 and point[2] < boxCenter[2] + boxSizes[2]/2):
-        return True
-    else:
-        return False
-    
-# project vector a onto vector b (3D)
-def project_3d(a,b):
-    bLength = length_3d(b)
+class ParticleManager:  
+    # separate registry for particle managers
+    _registry = []
 
-    coefficient = dot_3d(a,b) / (bLength * bLength)
+    hash = ""
 
-    return np.asarray([b[0] * coefficient,b[1] * coefficient,b[2] * coefficient])
+    def __init__(self):
+        # we create a string of random numeric characters, of length 24 (random long-enough number that i picked)
+        hash = random_number_string(24)
 
-# project vector a onto vector b (2D)
-def project_2d(a,b):
-    bLength = length_2d(b)
-
-    coefficient = dot_2d(a,b) / (bLength * bLength)
-
-    return np.asarray(b[0] * coefficient,b[1] * coefficient)
-    
-class Color:
-    white = np.asarray([1,1,1]).astype('float32')
-
-    red = np.asarray([1,0,0]).astype('float32')
-    green = np.asarray([0,1,0]).astype('float32')
-    blue = np.asarray([0,0,1]).astype('float32')
-
-    yellow = np.asarray([1,1,0]).astype('float32')
-    cyan = np.asarray([0,1,1]).astype('float32')
-    magenta = np.asarray([1,0,1]).astype('float32')
-
-    orange = np.asarray([1,0.592156862745098,0.1882352941176471]).astype('float32')
+        self._registry.append(self)
