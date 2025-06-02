@@ -1,7 +1,7 @@
-import pg3d as engine
+from pg3d_scripts import pg3d as engine
 import numpy as np
 import pygame as pg
-from pg3d import Color
+from pg3d_scripts.pg3d import Color
 
 # This is an example of how to use the PG3D engine to make a platformer.
 # Feel free to either use this script as a starting point for your own projects or start from scratch!

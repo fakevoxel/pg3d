@@ -5,6 +5,8 @@ import pygame as pg
 import numpy as np
 from numba import njit
 import random
+from .pg3d_model import Model
+from . import pg3d_math as m
 
 # just to keep track of things, not actually used in code
 version = "0.1"
@@ -94,7 +96,7 @@ def init(w, h, wActual, hActual, ver):
     horizontalFOV = verticalFOV*screenWidth/screenHeight
     
     sky_texture = np.zeros((screenWidth, screenHeight * 3, 3)).astype('uint8')
-    pg.surfarray.surface_to_array(sky_texture, pg.transform.scale(pg.image.load("assets/sky_better.png"), (screenWidth, screenHeight * 3)))
+    pg.surfarray.surface_to_array(sky_texture, pg.transform.scale(pg.image.load("pg3d_assets/sky_better.png"), (screenWidth, screenHeight * 3)))
 
     # gotta project those points
     hor_fov_adjust = 0.5*screenWidth/ np.tan(horizontalFOV * 0.5) 
@@ -224,7 +226,7 @@ def update():
 
                 closestPointOnThis = i.closest_point(closestPointOnOther)
 
-                if (length_3d(subtract_3d(closestPointOnOther, closestPointOnThis)) < 0.01):
+                if (m.length_3d(m.subtract_3d(closestPointOnOther, closestPointOnThis)) < 0.01):
                     # this code only runs if the two points are the same (which happens if there's an intersection)
 
                     # figuring out where the closestPointOnThis should be, basically
@@ -260,7 +262,7 @@ def getFrame():
     # the value is small because the z buffer stores values of 1/z, so 0 represents the largest depth possible (it would be 1/infinity)
 
     if (backgroundMode == "skybox"):
-        startY = int(dot_3d(np.asarray([0.0,-1.0,0.0]), camera_forward(camera)) * screenHeight)
+        startY = int(m.dot_3d(np.asarray([0.0,-1.0,0.0]), m.camera_forward(camera)) * screenHeight)
         startY += screenHeight
 
         # initialize the frame
@@ -326,7 +328,7 @@ def updateCursor():
         mouseOffset[0] += pg.mouse.get_pos()[0] - screenWidth/2
         mouseOffset[1] += pg.mouse.get_pos()[1] - screenHeight/2
         pg.mouse.set_pos(screenWidth/2,screenHeight/2)
-    mouseChange = subtract_2d(mouse_position(), mousePos)
+    mouseChange = m.subtract_2d(mouse_position(), mousePos)
     mousePos = mouse_position()
 def mouse_position():
     return pg.mouse.get_pos() + mouseOffset
@@ -340,32 +342,32 @@ def updateCamera_freecam(moveSpeed):
 
     pressed_keys = pg.key.get_pressed()
     if pressed_keys[ord('w')]:
-        forward = camera_forward(camera)
+        forward = m.camera_forward(camera)
         camera[0] += forward[0] * moveSpeed * timeSinceLastFrame
         camera[1] += forward[1] * moveSpeed * timeSinceLastFrame
         camera[2] += forward[2] * moveSpeed * timeSinceLastFrame
     elif pressed_keys[ord('s')]:
-        forward = camera_forward(camera)
+        forward = m.camera_forward(camera)
         camera[0] -= forward[0] * moveSpeed * timeSinceLastFrame
         camera[1] -= forward[1] * moveSpeed * timeSinceLastFrame
         camera[2] -= forward[2] * moveSpeed * timeSinceLastFrame
     if pressed_keys[ord('a')]:
-        forward = camera_right(camera)
+        forward = m.camera_right(camera)
         camera[0] += forward[0] * moveSpeed * timeSinceLastFrame
         camera[1] += forward[1] * moveSpeed * timeSinceLastFrame
         camera[2] += forward[2] * moveSpeed * timeSinceLastFrame
     elif pressed_keys[ord('d')]:
-        forward = camera_right(camera)
+        forward = m.camera_right(camera)
         camera[0] -= forward[0] * moveSpeed * timeSinceLastFrame
         camera[1] -= forward[1] * moveSpeed * timeSinceLastFrame
         camera[2] -= forward[2] * moveSpeed * timeSinceLastFrame
     if pressed_keys[ord('e')]:
-        forward = camera_up(camera)
+        forward = m.camera_up(camera)
         camera[0] += forward[0] * moveSpeed * timeSinceLastFrame
         camera[1] += forward[1] * moveSpeed * timeSinceLastFrame
         camera[2] += forward[2] * moveSpeed * timeSinceLastFrame
     elif pressed_keys[ord('q')]:
-        forward = camera_up(camera)
+        forward = m.camera_up(camera)
         camera[0] -= forward[0] * moveSpeed * timeSinceLastFrame
         camera[1] -= forward[1] * moveSpeed * timeSinceLastFrame
         camera[2] -= forward[2] * moveSpeed * timeSinceLastFrame
@@ -373,8 +375,8 @@ def updateCamera_freecam(moveSpeed):
     xChange = mouseChange[0]
     yChange = mouseChange[1]
 
-    rotate_camera(camera,camera_up(camera),xChange * -0.001)
-    rotate_camera(camera,camera_right(camera),yChange * 0.001)
+    rotate_camera(camera,m.camera_up(camera),xChange * -0.001)
+    rotate_camera(camera,m.camera_right(camera),yChange * 0.001)
 
 def updateCamera_firstPerson(moveSpeed):
     global screenWidth
@@ -391,9 +393,9 @@ def updateCamera_firstPerson(moveSpeed):
     
     # movement 
 
-    rawF = camera_forward(camera)
-    f = subtract_3d(rawF, project_3d(rawF, np.asarray([0.0,1.0,0.0])))
-    r = camera_right(camera)
+    rawF = m.camera_forward(camera)
+    f = m.subtract_3d(rawF, project_3d(rawF, np.asarray([0.0,1.0,0.0])))
+    r = m.camera_right(camera)
 
     pressed_keys = pg.key.get_pressed()
     if pressed_keys[ord('w')]:
@@ -412,7 +414,7 @@ def updateCamera_firstPerson(moveSpeed):
     # you HAVEE to call camera_right() again to deal with the result of the first rotation
     # otherwise, weird things happen that aren't fun
     rotate_camera(camera,np.asarray([0.0,1.0,0.0]),xChange * -0.001)
-    rotate_camera(camera,camera_right(camera),yChange * 0.001)
+    rotate_camera(camera,m.camera_right(camera),yChange * 0.001)
 
 def resetCameraRotation():
     camera[3] = 0.0
@@ -437,12 +439,12 @@ def setBackGroundColor(r,g,b):
 # ********   cube:     ********
 def spawnCube(x,y,z,tags):
     name = nameModel("cube")
-    Model(name,'assets/cube.obj', 'assets/grid_16.png',tags, Color.white)
+    Model(name,'pg3d_assets/cube.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
     getObject(name).set_position(x,y,z)
 def spawnScaledCube(x,y,z,sx,sy,sz,tags):
     name = nameModel("cube")
-    Model(name,'assets/cube.obj', 'assets/grid_16.png',tags, Color.white)
+    Model(name,'pg3d_assets/cube.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
     getObject(name).set_position(x,y,z)
     getObject(name).set_scale(sx,sy,sz)
@@ -450,12 +452,12 @@ def spawnScaledCube(x,y,z,sx,sy,sz,tags):
 # ********   plane:     ********
 def spawnPlane(x,y,z,tags):
     name = nameModel("plane")
-    Model(name,'assets/cube.obj', 'assets/grid_16.png',tags, Color.white)
+    Model(name,'pg3d_assets/cube.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
     getObject(name).set_position(x,y,z)
 def spawnScaledPlane(x,y,z,sx,sy,sz,tags):
     name = nameModel("plane")
-    Model(name,'assets/plane.obj', 'assets/grid_16.png',tags, Color.white)
+    Model(name,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
     getObject(name).set_position(x,y,z)
     getObject(name).set_scale(sx,sy,sz)
@@ -463,12 +465,12 @@ def spawnScaledPlane(x,y,z,sx,sy,sz,tags):
 # ********   sphere:     ********
 def spawnSphere(x,y,z,tags):
     name = nameModel("sphere")
-    Model(name,'assets/sphere.obj', 'assets/grid_16.png',tags, Color.white)
+    Model(name,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
     getObject(name).set_position(x,y,z)
 def spawnScaledSphere(x,y,z,sx,sy,sz,tags):
     name = nameModel("sphere")
-    Model(name,'assets/sphere.obj', 'assets/grid_16.png',tags, Color.white)
+    Model(name,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
     getObject(name).set_position(x,y,z)
     getObject(name).set_scale(sx,sy,sz)
@@ -633,9 +635,9 @@ def transform_points(mesh, points, camera):
     points[:,4] -= camera[1]
     points[:,5] -= camera[2]
 
-    camZ = camera_forward(camera)
-    forwardVectorAxis = normalize_3d(cross_3d(camZ,np.asarray([0.0,0.0,1.0])))
-    forwardVectorAngle = angle_3d(np.asarray([0.0,0.0,1.0]),camZ)
+    camZ = m.camera_forward(camera)
+    forwardVectorAxis = m.normalize_3d(m.cross_3d(camZ,np.asarray([0.0,0.0,1.0])))
+    forwardVectorAngle = m.angle_3d(np.asarray([0.0,0.0,1.0]),camZ)
 
     if (forwardVectorAngle > 0):
         for i in points:
@@ -646,8 +648,8 @@ def transform_points(mesh, points, camera):
     else:
         forwardVectorAxis = camZ
 
-    upVectorAxis = normalize_3d(cross_3d(rotate_vector_3d(camera_up(camera),forwardVectorAxis,forwardVectorAngle),np.asarray([0.0,1.0,0.0])))
-    upVectorAngle = angle_3d(np.asarray([0.0,1.0,0.0]), rotate_vector_3d(camera_up(camera),forwardVectorAxis,forwardVectorAngle))
+    upVectorAxis = m.normalize_3d(m.cross_3d(m.rotate_vector_3d(m.camera_up(camera),forwardVectorAxis,forwardVectorAngle),np.asarray([0.0,1.0,0.0])))
+    upVectorAngle = m.angle_3d(np.asarray([0.0,1.0,0.0]), m.rotate_vector_3d(m.camera_up(camera),forwardVectorAxis,forwardVectorAngle))
 
     if (upVectorAngle > 0):
         for i in points:
@@ -851,12 +853,12 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
                 p3 = np.asarray([problemVertices[0][3],problemVertices[0][4],problemVertices[0][5]])
 
                 parameter = (0.01 - p2[2]) / (p1[2] - p2[2])
-                intersect1 = add_3d(p2, np.asarray([(p1[0]-p2[0]) * parameter,(p1[1]-p2[1]) * parameter,(p1[2]-p2[2]) * parameter]))
+                intersect1 = m.add_3d(p2, np.asarray([(p1[0]-p2[0]) * parameter,(p1[1]-p2[1]) * parameter,(p1[2]-p2[2]) * parameter]))
                 goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
                 goodUV.append(np.asarray([problemUV[1][0] + (goodUV[0][0] - problemUV[1][0]) * parameter, problemUV[1][1] + (goodUV[0][1] - problemUV[1][1]) * parameter]))
 
                 parameter = (0.01 - p3[2]) / (p1[2] - p3[2])
-                intersect1 = add_3d(p3, np.asarray([(p1[0]-p3[0]) * parameter,(p1[1]-p3[1]) * parameter,(p1[2]-p3[2]) * parameter]))
+                intersect1 = m.add_3d(p3, np.asarray([(p1[0]-p3[0]) * parameter,(p1[1]-p3[1]) * parameter,(p1[2]-p3[2]) * parameter]))
                 goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
                 goodUV.append(np.asarray([problemUV[0][0] + (goodUV[0][0] - problemUV[0][0]) * parameter, problemUV[0][1] + (goodUV[0][1] - problemUV[0][1]) * parameter]))
 
@@ -900,12 +902,12 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
                 p3 = np.asarray([problemVertices[0][3],problemVertices[0][4],problemVertices[0][5]])
 
                 parameter = (0.01 - p3[2]) / (p1[2] - p3[2])
-                intersect1 = add_3d(p3, np.asarray([(p1[0]-p3[0]) * parameter,(p1[1]-p3[1]) * parameter,(p1[2]-p3[2]) * parameter]))
+                intersect1 = m.add_3d(p3, np.asarray([(p1[0]-p3[0]) * parameter,(p1[1]-p3[1]) * parameter,(p1[2]-p3[2]) * parameter]))
                 goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
                 goodUV.append(np.asarray([problemUV[0][0] + (goodUV[0][0] - problemUV[0][0]) * parameter, problemUV[0][1] + (goodUV[0][1] - problemUV[0][1]) * parameter]))
 
                 parameter = (0.01 - p3[2]) / (p2[2] - p3[2])
-                intersect1 = add_3d(p3, np.asarray([(p2[0]-p3[0]) * parameter,(p2[1]-p3[1]) * parameter,(p2[2]-p3[2]) * parameter]))
+                intersect1 = m.add_3d(p3, np.asarray([(p2[0]-p3[0]) * parameter,(p2[1]-p3[1]) * parameter,(p2[2]-p3[2]) * parameter]))
                 goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
                 goodUV.append(np.asarray([problemUV[0][0] + (goodUV[1][0] - problemUV[0][0]) * parameter, problemUV[0][1] + (goodUV[1][1] - problemUV[0][1]) * parameter]))
 
@@ -1021,144 +1023,16 @@ def draw_triangle(frame, z_buffer, texture, proj_points, uv_points, minX, maxX, 
 
                             # z buffer stores values of 1 / z
                             z_buffer[x, y] = z
-
-@njit()
-def clamp(val, lower, upper):
-    return min(max(val, lower), upper)
-
-def average_point_3d(list):
-    toReturn = np.asarray([0.0,0.0,0.0])
-    for i in list:
-        toReturn[0] += i[3] / len(list)
-        toReturn[1] += i[4] / len(list)
-        toReturn[2] += i[5] / len(list)
-
-    return toReturn
-
-# ********  2D vector helpers:  ********  
-
-@njit()
-def dot_2d(arr1, arr2): 
-    return arr1[0]*arr2[0] + arr1[1]*arr2[1]
-
-# linearly interpolate from one point to another, using parameter t
-@njit()
-def lerp_2d(a, b, t):
-    return np.asarray([a[0] + (b[0]-a[0]) * t, a[1] + (b[1]-a[1]) * t])
-
-# add b to a
-@njit()
-def add_2d(a, b):
-    return np.asarray([a[0] + b[0],a[1] + b[1]])
-
-# subtract b from a 
-@njit()
-def subtract_2d(a, b):
-    return np.asarray([a[0] - b[0], a[1] - b[1]])
-
-# length of a vector, using pythagorean theorem
-@njit()
-def length_2d(a):
-    return np.sqrt(a[0] * a[0] + a[1] * a[1])
-
-# takes in a vector, outputs that vector as a unit vector
-def normalize_2d(a):
-    l = length_2d(a)
-
-    if (l == 0):
-        return np.asarray([0.0,0.0])
-
-    return np.asarray([a[0]/l,a[1]/l])
-
-# ********  3D vector helpers:       ********
-
-@njit()
-def dot_3d(arr1, arr2): 
-    return arr1[0]*arr2[0] + arr1[1]*arr2[1] + arr1[2]*arr2[2]
-
-# interpolation for direction
-# not sure if this is how slerp is supposed to be done but ah well
-def slerp_3d(a,b,t):
-    rotationAxis = normalize_3d(cross_3d(a,b))
-    rotationAngle = angle_3d(a,b)
-
-    return rotate_vector_3d(a,rotationAxis, rotationAngle * t)
-
-# linearly interpolate from one point to another, using parameter t
-@njit()
-def lerp_3d(a, b, t):
-    return np.asarray([a[0] + (b[0]-a[0]) * t, a[1] + (b[1]-a[1]) * t, a[2] + (b[2]-a[2]) * t])
-
-# add b to a
-@njit()
-def add_3d(a, b):
-    return np.asarray([a[0] + b[0],a[1] + b[1], a[2] + b[2]])
-
-# subtract b from a 
-@njit
-def subtract_3d(a, b):
-    return np.asarray([a[0] - b[0], a[1] - b[1], a[2] - b[2]])
-
-# length of a vector, using pythagorean theorem
-@njit()
-def length_3d(a):
-    return np.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2])
-
-# local vectors of the camera (forward, up, right)
-# the forward and up vectors are defined in the camera, 
-# the right vector is calculated as a cross product between the two
-@njit()
-def camera_forward(camera):
-    return np.asarray([camera[3],camera[4],camera[5]])
-@njit()
-def camera_up(camera):
-    return np.asarray([camera[6],camera[7],camera[8]])
-def camera_right(camera):
-    crossProduct = normalize_3d(cross_3d(camera_forward(camera), camera_up(camera)))
-    return np.asarray([-crossProduct[0],-crossProduct[1],-crossProduct[2]])
-
-# calculate the angle in RADIANS between two vectors
-def angle_3d(a, b):
-    dp = dot_3d(a,b)
-    la = length_3d(a)
-    lb = length_3d(b)
-
-    return np.acos((dp) / (la * lb))
-
-# calculate the cross product between two vectors
-# (there is no cross in 2d)
-@njit()
-def cross_3d(a,b):
-    return np.asarray([a[1]*b[2] - a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]])
-
-# takes in a vector, outputs that vector as a unit vector
-def normalize_3d(a):
-    l = length_3d(a)
-
-    if (l == 0):
-        return np.asarray([0.0,0.0,0.0])
-
-    return np.asarray([a[0]/l,a[1]/l,a[2]/l])
-
-# rotate a vector (x,y,z) around another vector, by an angle
-@njit
-def rotate_vector_3d(vector, axis, angle):
-    # rotate around x axis
-    i = np.asarray([0.0,0.0,0.0])
-    i[0] = vector[0] * (     (axis[0] * axis[0]) * (1 - np.cos(angle)) + np.cos(angle)                  ) + vector[1] * (        (axis[1] * axis[0]) * (1 - np.cos(angle)) - (axis[2] * np.sin(angle))         ) + vector[2] * (        (axis[0] * axis[2]) * (1 - np.cos(angle)) + (axis[1] * np.sin(angle))     )
-    i[1] = vector[0] * (     (axis[0] * axis[1]) * (1 - np.cos(angle)) + (axis[2] * np.sin(angle))     ) + vector[1] * (        (axis[1] * axis[1]) * (1 - np.cos(angle)) + np.cos(angle)                      ) + vector[2] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) - (axis[0] * np.sin(angle))     )
-    i[2] = vector[0] * (     (axis[0] * axis[2]) * (1 - np.cos(angle)) - (axis[1] * np.sin(angle))     ) + vector[1] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) + (axis[0] * np.sin(angle))         ) + vector[2] * (        (axis[2] * axis[2]) * (1 - np.cos(angle)) + np.cos(angle)                  )
-    
-    return i   
+  
 # rotate the camera by an axis and angle
 # re-defines the forward and up vectors, basically
 def rotate_camera(camera,axis,angle):
-    up = camera_up(camera)
-    forward = camera_forward(camera)
+    up = m.camera_up(camera)
+    forward = m.camera_forward(camera)
 
     # new local vectors
-    upNew = rotate_vector_3d(up,axis,angle)
-    forwardNew = rotate_vector_3d(forward,axis,angle)
+    upNew = m.rotate_vector_3d(up,axis,angle)
+    forwardNew = m.rotate_vector_3d(forward,axis,angle)
 
     # assinging the camera vectors
     camera[3] = forwardNew[0]
@@ -1178,57 +1052,6 @@ def getFirstIndex(string, char):
             return i
     
     return len(string)
-
-# ********  MESH helpers:       ********
-
-def read_obj(fileName):
-    '''
-    Read wavefront models with or without textures, supports triangles and quads (turned into triangles)
-    '''
-    vertices, triangles, texture_uv, texture_map = [], [], [], []
-
-    with open(fileName) as f:
-        for line in f.readlines():
-
-            splitted = line.split() # split the line in a list
-
-            if len(splitted) == 0: # skip empty lines
-                continue
-
-            if splitted[0] == "v": # vertices
-                vertices.append(splitted[1:4] + [1,1,1] + [1,1,1]) # aditional spaces for transformation, and projection
-
-            elif splitted[0] == "vt": # texture coordinates
-                texture_uv.append(splitted[1:3])
-
-            elif splitted[0] == "f": # Faces
-
-                if len(splitted[1].split("/")) == 1: # no textures
-                    triangles.append([splitted[1], splitted[2], splitted[3]])
-
-                    if len(splitted) > 4: # quads, make additional triangle
-                        triangles.append([splitted[1], splitted[3], splitted[4]])
-
-                else: # with textures
-                    p1 = splitted[1].split("/")
-                    p2 = splitted[2].split("/")
-                    p3 = splitted[3].split("/")
-                    triangles.append([p1[0], p2[0], p3[0]])
-                    texture_map.append([p1[1], p2[1], p3[1]])
-                    
-                    if len(splitted) > 4: # quads, make additional triangle
-                        p4 = splitted[4].split("/")
-                        triangles.append([p1[0], p3[0], p4[0]])
-                        texture_map.append([p1[1], p3[1], p4[1]])
-                
-    vertices = np.asarray(vertices).astype(float)
-    triangles = np.asarray(triangles).astype(int) - 1 # adjust indexes to start with 0
-
-    texture_uv = np.asarray(texture_uv).astype(float)
-    texture_uv[:,1] = 1 - texture_uv[:,1] # apparently obj textures are upside down
-    texture_map = np.asarray(texture_map).astype(int) - 1 # adjust indexes to start with 0
-    
-    return vertices, triangles, texture_uv, texture_map
 
 # based on who is in what level, update which models sould render and which should not
 # THE ENGINE DOES NOT LOOP THROUGH LEVELS, it just checks the shouldBeRendered var for each model
@@ -1335,17 +1158,17 @@ def point_in_box_3d(point, boxCenter, boxSizes):
     
 # project vector a onto vector b (3D)
 def project_3d(a,b):
-    bLength = length_3d(b)
+    bLength = m.length_3d(b)
 
-    coefficient = dot_3d(a,b) / (bLength * bLength)
+    coefficient = m.dot_3d(a,b) / (bLength * bLength)
 
     return np.asarray([b[0] * coefficient,b[1] * coefficient,b[2] * coefficient])
 
 # project vector a onto vector b (2D)
 def project_2d(a,b):
-    bLength = length_2d(b)
+    bLength = m.length_2d(b)
 
-    coefficient = dot_2d(a,b) / (bLength * bLength)
+    coefficient = m.dot_2d(a,b) / (bLength * bLength)
 
     return np.asarray(b[0] * coefficient,b[1] * coefficient)
     
@@ -1445,344 +1268,6 @@ class Level:
     def addObject(self, objName):
         if (not array_has_item(self.objectNames, objName)):
             self.objectNames.append(objName)
-
-class Model:
-    _registry = []
-
-    name = ""
-
-    # there are some tags that the engine looks for, like the 'physics' tag
-    tags = []
-
-    # models use dictionaries as per-object variables
-    # this allows the storage of things like collider data
-    # (there is a collider TAG too, because it makes it easier to search through objects (objects have less tags than data), but that might change)
-    data = {}
-
-    # essentially a unity transform component:
-
-    # scale, then rotation, then position is applied
-    position = np.asarray([0.0,0.0,0.0])
-    forward = np.asarray([0.0,0.0,1.0])
-    up = np.asarray([0.0,1.0,0.0])
-    scale = np.asarray([1.0,1.0,1.0])
-
-    # physics stuff
-    linearVelocity = np.asarray([0.0,0.0,0.0])
-    angularVelocity = np.asarray([0.0,0.0,0.0])
-    
-    # average of all vertices
-    rawMidpoint = np.asarray([0.0,0.0,0.0])
-
-    color = np.asarray([0,0,0]).astype('uint8')
-    
-    # whether to render the object or not
-    # normally this is set through the level system, the object inherits the variable from the parent level
-    # IF THE OBJECT IS IN A LEVEL, you cannot manually enable/disable it BUT YOU CAN IF IT'S NOT IN A LEVEL by calling show()/hide()
-    shouldBeDrawn = True
-
-    shouldBePhysics = True
-
-    def __init__(self, name, path_obj, path_texture, tags, color):
-        self.name = name
-
-        self.tags = tags
-
-        self.position = np.asarray([0.0,0.0,0.0])
-        self.forward = np.asarray([0.0,0.0,1.0])
-        self.up = np.asarray([0.0,1.0,0.0])
-        # scale is for each axis
-        self.scale = np.asarray([1.0,1.0,1.0])
-
-        self._registry.append(self)
-        # points are stored using nine numbers
-        # the first three is the point as it appears in the mesh file
-        # the next three is the point as it appears in the scene, RELATIVE TO THE CAMERA
-        # the final three is the point as it appears projected onto the screen
-        self.points, self.triangles, self.texture_uv, self.texture_map =  read_obj(path_obj)
-        self.texture = pg.surfarray.array3d(pg.image.load(path_texture))
-
-        self.rawMidpoint = self.calculateRawMidpoint()
-
-        self.data = {}
-
-        # for textured models, the color is multiplied by the texture
-        # for colored models, the color applies to all geometry
-        self.color = color
-
-    def show(self):
-        self.shouldBeDrawn = True
-
-    def hide(self):
-        self.shouldBeDrawn = False
-
-    def disablePhysicsInteraction(self):
-        self.shouldBePhysics = False
-
-    def enablePhysicsInteraction(self):
-        self.shouldBePhysics = True
-
-    # given a point, find the closest point ON THIS OBJECT'S COLLIDER
-    def closest_point(self, foreignPoint):
-        # we're assuming that if the object has a collider tag, it has the necessary data
-        # if this somehow isn't true, we get problems lol because the collider defaults to 0,0,0
-
-        # the proceudre is basically to transform the given point so that it's relative to the local axes,
-        # then clamp it to the box,
-        # then transform it back
-
-        # move the point so its POSITION is local
-        rmpoint= self.midpoint()
-        worldSpaceMidpoint = np.asarray([rmpoint[3],rmpoint[4],rmpoint[5]])
-        localPoint = np.asarray([foreignPoint[0] - worldSpaceMidpoint[0],foreignPoint[1] - worldSpaceMidpoint[1],foreignPoint[2] - worldSpaceMidpoint[2]])
-
-        # now, we rotate it using the opposite rotation we would use to transform a point
-        forwardRotationAxis = normalize_3d(cross_3d(np.asarray([0.0,0.0,1.0]), self.forward))
-        forwardRotationAngle = angle_3d(np.asarray([0.0,0.0,1.0]), self.forward)
-        rotatedPoint = localPoint
-        if forwardRotationAngle > 0:
-            rotatedPoint = rotate_vector_3d(localPoint, forwardRotationAxis, forwardRotationAngle)
-        else:
-            forwardRotationAxis = self.forward
-            
-        rotatedUpAxis = rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
-        upRotationAxis = normalize_3d(cross_3d(rotatedUpAxis, self.up))
-        upRotationAngle = angle_3d(rotatedUpAxis, self.up)
-        
-        if upRotationAngle > 0:
-            rotatedPoint = rotate_vector_3d(rotatedPoint, upRotationAxis, upRotationAngle)
-
-        colliderBounds = self.data["collider_bounds"]
-
-        # now, clamp it 
-        # this function takes in (point, point point) and (box, box, box)
-        clampedPoint = clamp_box_3d(rotatedPoint,np.asarray([0.0,0.0,0.0]),colliderBounds)
-
-        rotatedPoint = clampedPoint
-
-        #print(str(clampedPoint + worldSpaceMidpoint) + "     " + str(foreignPoint))
-
-        # UNROTATE THE POINT
-        if upRotationAngle > 0:
-            rotatedPoint = rotate_vector_3d(clampedPoint, upRotationAxis, -upRotationAngle)
-        if forwardRotationAngle > 0:
-            rotatedPoint = rotate_vector_3d(rotatedPoint, forwardRotationAxis, -forwardRotationAngle)
-
-        # add the position back
-        return np.asarray([rotatedPoint[0] + worldSpaceMidpoint[0],rotatedPoint[1] + worldSpaceMidpoint[1],rotatedPoint[2] + worldSpaceMidpoint[2]])
-    
-    def is_point_inside(self, foreignPoint, bounds):
-        rmpoint= self.midpoint()
-        worldSpaceMidpoint = np.asarray([rmpoint[3],rmpoint[4],rmpoint[5]])
-        localPoint = np.asarray([foreignPoint[0] - worldSpaceMidpoint[0],foreignPoint[1] - worldSpaceMidpoint[1],foreignPoint[2] - worldSpaceMidpoint[2]])
-
-        # now, we rotate it using the opposite rotation we would use to transform a point
-        forwardRotationAxis = normalize_3d(cross_3d(np.asarray([0.0,0.0,1.0]), self.forward))
-        forwardRotationAngle = angle_3d(np.asarray([0.0,0.0,1.0]), self.forward)
-        rotatedPoint = localPoint
-        if forwardRotationAngle > 0:
-            rotatedPoint = rotate_vector_3d(localPoint, forwardRotationAxis, forwardRotationAngle)
-        else:
-            forwardRotationAxis = self.forward
-
-        rotatedUpAxis = rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
-        upRotationAxis = normalize_3d(cross_3d(rotatedUpAxis, self.up))
-        upRotationAngle = angle_3d(rotatedUpAxis, self.up)
-
-        if upRotationAngle > 0:
-            rotatedPoint = rotate_vector_3d(rotatedPoint, upRotationAxis, upRotationAngle)
-
-        return point_in_box_3d(rotatedPoint,np.asarray([0.0,0.0,0.0]),bounds)
-        
-        # there's no reason to un-transform the point, we're only trying to find whether its in the box
-
-    def add_data(self, key, value):
-        # update the entry in the dictionary
-        self.data[key] = value
-
-    def calculateRawMidpoint(self):
-        toReturn = np.asarray([0.0,0.0,0.0])
-
-        for i in self.points:
-            toReturn[0] += i[0] / len(self.points)
-            toReturn[1] += i[1] / len(self.points)
-            toReturn[2] += i[2] / len(self.points)
-
-        return toReturn
-    
-    def midpoint(self):
-        rawMidpoint = np.asarray([self.rawMidpoint[0],self.rawMidpoint[1],self.rawMidpoint[2],0.0,0.0,0.0])
-        return self.transform_point(rawMidpoint)
-
-    # whether the tags array has a given tag
-    def hasTag(self, tag):
-        for i in self.tags:
-            if (i == tag):
-                return True
-            
-        return False
-
-    # when messing with models, please use the functions and don't mess with the variables themselves!
-
-    def is_colliding(self):
-        collidersInScene = getObjectsWithTag("box_collider")
-
-        # this comes out as a point (x,y,z) (x transformed, y transformed, z transformed)
-        # it's in world space!
-        returnMidpoint = self.midpoint()
-        worldSpaceMidpoint = np.asarray([returnMidpoint[3],returnMidpoint[4],returnMidpoint[5]])
-
-        for j in collidersInScene:
-
-            # don't do anything if talking about the same object
-            if (j.name == self.name):
-                continue
-
-            if (not j.shouldBePhysics):
-                continue
-
-            closestPointOnOther = j.closest_point(worldSpaceMidpoint)
-
-            closestPointOnThis = self.closest_point(closestPointOnOther)
-
-            if (length_3d(subtract_3d(closestPointOnOther, closestPointOnThis)) < 0.01):
-                # this code only runs if the two points are the same (which happens if there's an intersection)
-
-                return True
-            
-        return False
-
-    def is_triggered(self):
-        # assuming there IS actually a trigger collider when this function is called
-        
-        # also, the only objects that are detected in trigger colliders are ones with the "interact" tag
-        # ALSO, COLLIDERS are the only thing that triggers a trigger collider, not other trigger colliders
-        possibleObjects = getObjectsWithTag("interact")
-
-        # loop through each, and check to see if the closest point on their collider
-        for i in possibleObjects:
-            if (not i.shouldBePhysics):
-                    continue
-            
-            if (self.is_point_inside(i.position, self.data["trigger_bounds"])):
-                return True
-            
-        return False
-
-    def add_box_collider(self,boundsX,boundsY,boundsZ):
-        self.add_tag("box_collider")
-
-        self.add_data("collider_bounds", np.asarray([boundsX,boundsY,boundsZ]))
-
-    def add_box_trigger(self,boundsX,boundsY,boundsZ):
-        self.add_tag("box_trigger")
-
-        self.add_data("trigger_bounds", np.asarray([boundsX,boundsY,boundsZ]))
-
-    def add_tag(self, tagName):
-        if (array_has_item(self.tags, tagName)):
-            return
-        self.tags.append(tagName)
-
-    def add_velocity(self,x,y,z):
-        self.linearVelocity[0] += x
-        self.linearVelocity[1] += y
-        self.linearVelocity[2] += z
-
-    def set_velocity(self,x,y,z):
-        self.linearVelocity[0] = x
-        self.linearVelocity[1] = y
-        self.linearVelocity[2] = z
-
-    # set position to some numbers
-    def set_position(self, x, y, z):
-        self.position[0] = x
-        self.position[1] = y
-        self.position[2] = z
-    
-    # translate with individual numbers
-    def add_position(self, x, y, z):
-        self.position[0] += x
-        self.position[1] += y
-        self.position[2] += z
-
-    # rotate around any axis, using a CC angle
-    def rotate(self, angle, axis):
-        newForward = rotate_vector_3d(self.forward, angle, axis)
-        newUp = rotate_vector_3d(self.up, angle, axis)
-
-        self.forward[0] = newForward[0]
-        self.forward[1] = newForward[1]
-        self.forward[2] = newForward[2]
-
-        self.up[0] = newUp[0]
-        self.up[1] = newUp[1]
-        self.up[2] = newUp[2]
-
-    def get_forward(self):
-        return self.forward
-
-    def get_up(self):
-        return self.up
-
-    def get_right(self):
-        f = self.forward
-        u = self.up
-
-        crossProduct = normalize_3d(cross_3d(f, u))
-        
-        return np.asarray([-crossProduct[0],-crossProduct[1],-crossProduct[2]])
-
-    def set_forward(self, v):
-        appliedRotationAxis = normalize_3d(cross_3d(self.forward, v))
-        appliedRotationAngle = angle_3d(self.forward, v)
-
-        if (appliedRotationAngle > 0.001 and appliedRotationAngle < np.pi - 0.001):
-            self.forward = rotate_vector_3d(self.forward, appliedRotationAxis, appliedRotationAngle)
-            self.up = rotate_vector_3d(self.up, appliedRotationAxis, appliedRotationAngle)
-
-    def set_up(self, v):
-        appliedRotationAxis = cross_3d(self.up, v)
-        appliedRotationAngle = angle_3d(self.up, v)
-
-        self.forward = rotate_vector_3d(self.forward, appliedRotationAxis, appliedRotationAngle)
-        self.up = rotate_vector_3d(self.up, appliedRotationAxis, appliedRotationAngle)
-
-    # set scale with three numbers
-    def set_scale(self, a, b, c):
-        self.scale[0] = a
-        self.scale[1] = b
-        self.scale[2] = c
-
-    def transform_point(self, point):
-        # scale first
-        point[3] = point[0] * self.scale[0]
-        point[4] = point[1] * self.scale[1]
-        point[5] = point[2] * self.scale[2]
-
-        # then rotation
-        forwardRotationAxis = normalize_3d(cross_3d(np.asarray([0.0,0.0,1.0]), self.forward))
-        forwardRotationAngle = angle_3d(np.asarray([0.0,0.0,1.0]), self.forward)
-        if (forwardRotationAngle <= 0):
-            forwardRotationAxis = self.forward
-        rotatedUpAxis = rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
-        upRotationAxis = normalize_3d(cross_3d(rotatedUpAxis, self.up))
-        upRotationAngle = angle_3d(rotatedUpAxis, self.up)
-        rotatedPoint = point
-        if forwardRotationAngle > 0:
-            rotatedPoint = rotate_point_3d(point, forwardRotationAxis, forwardRotationAngle)
-        if upRotationAngle > 0:
-            rotatedPoint = rotate_point_3d(rotatedPoint, upRotationAxis, upRotationAngle)
-        point[3] = rotatedPoint[3]
-        point[4] = rotatedPoint[4]
-        point[5] = rotatedPoint[5]
-
-        # then position
-        point[3] += self.position[0]
-        point[4] += self.position[1]
-        point[5] += self.position[2]
-
-        return point
 
 # TODO: the entire particle system
 
