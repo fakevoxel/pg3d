@@ -1,4 +1,14 @@
 import numpy as np
+import random
+
+# generates a string of random number characters of a given length
+def random_number_string(length):
+    toReturn = ""
+
+    for i in range(length):
+        toReturn += str(random.randint(0, 9))
+
+    return toReturn
 
 # ********  MESH helpers:       ********
 
