@@ -18,7 +18,7 @@ verticalFOV = np.pi / 4
 horizontalFOV = verticalFOV*screenWidth/screenHeight
 
 # this is the default sky color, but can be set using setSkyColor()
-skyColor = np.asarray([0,0,0]).astype('uint8')
+skyColor = np.asarray([1.0,1.0,1.0])
 
 # mouse shennanigans
 mouseChange = np.asarray([0.0,0.0]) # the change in the mouse since the last frame
@@ -63,6 +63,8 @@ renderingModes = ["texture","uv","wireframe"]
 physicsEnabled = False
 backfaceCulling = True
 
+sky_texture = None
+
 # ********      main engine functions:     ********   
 def init(w, h, wActual, hActual, ver):
     global screenWidth
@@ -79,6 +81,8 @@ def init(w, h, wActual, hActual, ver):
     global hor_fov_adjust
     global ver_fov_adjust
 
+    global sky_texture
+
     screenWidth = w
     screenHeight = h
     
@@ -87,6 +91,9 @@ def init(w, h, wActual, hActual, ver):
 
     verticalFOV = ver * np.pi / 180
     horizontalFOV = verticalFOV*screenWidth/screenHeight
+    
+    sky_texture = np.zeros((screenWidth, screenHeight * 3, 3)).astype('uint8')
+    pg.surfarray.surface_to_array(sky_texture, pg.transform.scale(pg.image.load("assets/sky_better.png"), (screenWidth, screenHeight * 3)))
 
     # gotta project those points
     hor_fov_adjust = 0.5*screenWidth/ np.tan(horizontalFOV * 0.5) 
@@ -245,13 +252,21 @@ def getFrame():
     light_dir = light_dir/np.linalg.norm(light_dir)
 
     frame= np.ones((screenWidth, screenHeight, 3)).astype('uint8')
-    z_buffer = np.ones((screenWidth, screenHeight))
-
-    # initialize the frame
-    frame[:,:,:] = skyColor
-    z_buffer[:,:] = 0 # start with some SMALL value
+    z_buffer = np.zeros((screenWidth, screenHeight)) # start with some SMALL value
     # the value is small because the z buffer stores values of 1/z, so 0 represents the largest depth possible (it would be 1/infinity)
 
+    if (backgroundMode == "skybox"):
+        startY = int(dot_3d(np.asarray([0.0,-1.0,0.0]), camera_forward(camera)) * screenHeight)
+        startY += screenHeight
+
+        # initialize the frame
+        for x in range(screenWidth):
+            for y in range(screenHeight):
+                frame[x,y] = sky_texture[x,startY + y]
+
+    elif (backgroundMode == "solid color"):
+        frame[:,:] = skyColor * 255
+   
     # draw the frame
     for model in Model._registry:
         if (model.shouldBeDrawn):
@@ -262,19 +277,7 @@ def getFrame():
             draw_model(model, frame, model.points, model.triangles, camera, light_dir, z_buffer,
                         model.texture_uv, model.texture_map, model.texture, model.color)
     
-    # skybox rendering is NOT SUPPORTED right now!!
-    # if (backgroundMode == "skybox"):
-    #     draw_skybox(frame,z_buffer)
-    
     return frame
-
-# skybox is not supported (or finished) because it's laggy!
-@njit()
-def draw_skybox(frame,z_buffer):
-    for x in range(screenWidth):
-        for y in range(screenHeight):
-            if (z_buffer[x,y] == 0): # only do skybox stuff on z_buffer coords that haven't been touched
-                frame[x,y] = np.asarray([255,0,0]).astype('uint8')
 
 def drawScreen(frame):
     # turn the frame into a surface
@@ -420,7 +423,12 @@ def resetCameraRotation():
 
 def setBackGroundColor(r,g,b):
     global skyColor
-    skyColor = np.asarray([r,g,b]).astype('uint8')
+    skyColor = np.asarray([r/255,g/255,b/255])
+
+    for x in range(screenWidth):
+        for y in range(screenHeight * 3):
+            texColor = sky_texture[x,y]
+            sky_texture[x,y] = np.asarray([texColor[0] * skyColor[0], texColor[1] * skyColor[1], texColor[2] * skyColor[2]])
 
 def spawnCube(x,y,z,tags):
     name = nameModel("cube")

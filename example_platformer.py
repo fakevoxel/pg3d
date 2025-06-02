@@ -12,6 +12,7 @@ def main():
     # Always start the engine by calling pg3d.init(). Pass in the render resolution, screen resolution, and VERTICAL fov.
     engine.init(200,150,800,600, 70)
 
+    engine.setBackgroundMode("skybox")
     # You can change the background color of the game with this function:
     engine.setBackGroundColor(0,100,200)
     # We're making it a fairly neutral blue color.
