@@ -2,7 +2,7 @@
 
 This is my implementation of a 3D rendering engine in python, using PyGame and Numba (Numba is necessary in order to speed up the rendering functions).
 
-### All information is as of version 0.1! Older/newer versions of this project may not agree with the README file.
+### All information is as of version 0.1.1! Older/newer versions of this project may not agree with the README file.
 
 # REQUIREMENTS:
 For PG3D to run properly, you need the following:
@@ -50,8 +50,10 @@ If you find other versions that work, or ones that don't, post an issue here on 
 # Features:
 - textured .obj file rendering
 - camera system
-- basic object management
+- built-in player controller (pg3d.updateCamera_firstPerson())
+- basic object management (creation, destruction, transformation)
 - box colliders
+- trigger colliders
 - (somewhat janky) physics engine
 
 # Gallery:
