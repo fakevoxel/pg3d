@@ -418,7 +418,12 @@ def updateCamera_firstPerson(moveSpeed, mouseSensitivity, enableMovement):
     # you HAVEE to call camera_right() again to deal with the result of the first rotation
     # otherwise, weird things happen that aren't fun
     rotate_camera(np.asarray([0.0,1.0,0.0]),xChange * -0.001 * mouseSensitivity)
-    rotate_camera(cameraLocalTransform.get_right(),yChange * 0.001 * mouseSensitivity)
+    
+    newUp = m.rotate_vector_3d(cameraWorldTransform.up, cameraLocalTransform.get_right(),yChange * 0.001 * mouseSensitivity)
+
+    if (m.dot_3d(newUp, np.asarray([0.0,1.0,0.0])) > 0.5):
+        rotate_camera(cameraLocalTransform.get_right(),yChange * 0.001 * mouseSensitivity)
+
 
 def resetCameraRotation():
     cameraLocalTransform.up = np.asarray([0.0,1.0,0.0])
