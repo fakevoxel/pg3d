@@ -56,15 +56,13 @@ def main():
         playerObj = engine.getObject("cube")
 
         # handle main events (quit, basically)
+        
+        # TODO: maybe get the engine to do more of the event handling?
         for event in pg.event.get():
             if event.type == pg.QUIT: running = False
             if event.type == pg.KEYDOWN and event.key == pg.K_ESCAPE: running = False
 
-            # jumping
-            if event.type == pg.KEYDOWN and event.key == pg.K_SPACE: 
-                if (playerObj.is_colliding()):
-                    playerObj.add_local_position(0.0,0.1,0.0)
-                    playerObj.add_velocity(0.0,10.0,0.0)
+            if event.type == pg.JOYDEVICEADDED: engine.connectJoystick(event)
 
         # (annoyingly) MUST CALL update() AFTER getFrame() and drawScreen()!
         # also, I'm pretty sure, call it befwore any camera update functions

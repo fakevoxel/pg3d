@@ -47,6 +47,14 @@ physicsEnabled = False
 
 sky_texture = None
 
+# joystick stuff ************************
+# easier to include here, rather than in another class/script
+# for now, the event that handles connecting joysticks is NOT a part of the engine
+# you catch the event outside of the engine, and feed the event to connectJoystick() in the engine
+
+# the joysticks that are currently connected to the computer
+connectedJoysticks = []
+
 # ********      main engine functions:     ********   
 def init(w, h, wActual, hActual, ver):
     global clock
@@ -116,6 +124,157 @@ def refreshObjectOrder():
     # setting the registry equal to the sorted one, index by index
     for i in range(len(Model._registry)):
         Model._registry[i] = sortedObjects[i]
+
+def get_first_joystick_triangle():
+    if (len(connectedJoysticks) == 0):
+        return False
+    return connectedJoysticks[0].get_button(3)
+
+def get_first_joystick_square():
+    if (len(connectedJoysticks) == 0):
+        return False
+    return connectedJoysticks[0].get_button(2)
+
+def get_first_joystick_circle():
+    if (len(connectedJoysticks) == 0):
+        return False
+    return connectedJoysticks[0].get_button(1)
+
+def get_first_joystick_cross():
+    if (len(connectedJoysticks) == 0):
+        return False
+    return connectedJoysticks[0].get_button(0)
+
+def get_first_joystick_left_bumper():
+    if (len(connectedJoysticks) == 0):
+        return False
+    return connectedJoysticks[0].get_button(9)
+
+def get_first_joystick_right_bumper():
+    if (len(connectedJoysticks) == 0):
+        return False
+    return connectedJoysticks[0].get_button(10)
+
+def get_joystick_left_bumper(index):
+    if (len(connectedJoysticks) <= index):
+        return False
+    return connectedJoysticks[index].get_button(9)
+
+def get_joystick_right_bumper(index):
+    if (len(connectedJoysticks) <= index):
+        return False
+    return connectedJoysticks[index].get_button(10)
+
+def get_joystick_triangle(index):
+    if (len(connectedJoysticks) <= index):
+        return False
+    return connectedJoysticks[index].get_button(3)
+
+def get_joystick_square(index):
+    if (len(connectedJoysticks) <= index):
+        return False
+    return connectedJoysticks[index].get_button(2)
+
+def get_joystick_circle(index):
+    if (len(connectedJoysticks) <= index):
+        return False
+    return connectedJoysticks[index].get_button(1)
+
+def get_joystick_cross(index):
+    if (len(connectedJoysticks) <= index):
+        return False
+    return connectedJoysticks[index].get_button(0)
+
+# will use the FIRST joystick
+def get_first_joystick_left_x(deadband):
+    if (len(connectedJoysticks) == 0):
+        return 0
+    val = connectedJoysticks[0].get_axis(0)
+    if (np.abs(val) < deadband):
+        return 0
+    return val
+
+def get_first_joystick_left_y(deadband):
+    if (len(connectedJoysticks) == 0):
+        return 0
+    val = connectedJoysticks[0].get_axis(1)
+    if (np.abs(val) < deadband):
+        return 0
+    return val
+
+def get_first_joystick_right_x(deadband):
+    if (len(connectedJoysticks) == 0):
+        return 0
+    val = connectedJoysticks[0].get_axis(2)
+    if (np.abs(val) < deadband):
+        return 0
+    return val
+
+def get_first_joystick_right_y(deadband):
+    if (len(connectedJoysticks) == 0):
+        return 0
+    val = connectedJoysticks[0].get_axis(3)
+    if (np.abs(val) < deadband):
+        return 0
+    return val
+
+# will use joystick with index specified
+def get_joystick_left_x(index, deadband):
+    if (len(connectedJoysticks) <= index):
+        return 0
+    val = connectedJoysticks[index].get_axis(0)
+    if (np.abs(val) < deadband):
+        return 0
+    return val
+
+def get_joystick_left_y(index, deadband):
+    if (len(connectedJoysticks) <= index):
+        return 0
+    val = connectedJoysticks[index].get_axis(1)
+    if (np.abs(val) < deadband):
+        return 0
+    return val
+
+def get_joystick_right_x(index, deadband):
+    if (len(connectedJoysticks) <= index):
+        return 0
+    val = connectedJoysticks[index].get_axis(2)
+    if (np.abs(val) < deadband):
+        return 0
+    return val
+
+def get_joystick_right_y(index, deadband):
+    if (len(connectedJoysticks) <= index):
+        return 0
+    val = connectedJoysticks[index].get_axis(3)
+    if (np.abs(val) < deadband):
+        return 0
+    return val
+
+# yes, you could just have a deadband of 0
+def get_raw_joystick_left_x(index):
+    if (len(connectedJoysticks) == 0):
+        return 0
+    return connectedJoysticks[index].get_axis(0)
+
+def get_raw_joystick_left_y(index):
+    if (len(connectedJoysticks) == 0):
+        return 0
+    return connectedJoysticks[index].get_axis(1)
+
+def get_raw_joystick_right_x(index):
+    if (len(connectedJoysticks) == 0):
+        return 0
+    return connectedJoysticks[index].get_axis(2)
+
+def get_raw_joystick_right_y(index):
+    if (len(connectedJoysticks) == 0):
+        return 0
+    return connectedJoysticks[index].get_axis(3)
+
+def connectJoystick(event):
+    joy = pg.joystick.Joystick(event.device_index)
+    connectedJoysticks.append(joy)
 
 # with the heirarchy refreshed, 
 # we now have to loop through the objects to refresh their local/world vectors
@@ -380,10 +539,46 @@ def updateCamera_freecam(moveSpeed):
     rotate_camera(cameraLocalTransform.up,xChange * -0.001)
     rotate_camera(cameraLocalTransform.get_right(),yChange * 0.001)
 
-def updateCamera_firstPerson(moveSpeed, mouseSensitivity, enableMovement):
-    global screenWidth
-    global screenHeight
+def updateCamera_firstPerson_controller(moveSpeed, mouseSensitivity, enableMovement):
+    global cameraLocalTransform
+    global cameraWorldTransform
+    global cameraParent
 
+    global timeSinceLastFrame
+
+    if (cameraParent == None):
+        # no parent, no controller
+        return
+    
+    if (enableMovement):
+        rawF = cameraWorldTransform.forward
+        f = m.normalize_3d(m.subtract_3d(rawF, project_3d(rawF, np.asarray([0.0,1.0,0.0]))))
+        r = cameraWorldTransform.get_right()
+
+        joystickY = get_first_joystick_left_y(0.1)
+        joystickX = get_first_joystick_left_x(0.1)
+        cameraParent.add_local_position(-f[0] * joystickY * 0.4, -f[1] * joystickY * 0.4, -f[2] * joystickY * 0.4)
+        cameraParent.add_local_position(r[0] * -joystickX * 0.4, r[1] * -joystickX * 0.4, r[2] * -joystickX * 0.4)
+
+        if (get_first_joystick_cross()):
+            if (cameraParent.is_colliding()):
+                cameraParent.add_local_position(0.0,0.1,0.0)
+                cameraParent.add_velocity(0.0,10.0,0.0)
+
+    # rotation
+    xChange = get_first_joystick_right_x(0.1)
+    yChange = get_first_joystick_right_y(0.1)
+
+    # you HAVEE to call camera_right() again to deal with the result of the first rotation
+    # otherwise, weird things happen that aren't fun
+    rotate_camera(np.asarray([0.0,1.0,0.0]),xChange * -0.001 * mouseSensitivity)
+    
+    newUp = m.rotate_vector_3d(cameraWorldTransform.up, cameraLocalTransform.get_right(),yChange * 0.001 * mouseSensitivity)
+
+    if (m.dot_3d(newUp, np.asarray([0.0,1.0,0.0])) > 0.5):
+        rotate_camera(cameraLocalTransform.get_right(),yChange * 0.001 * mouseSensitivity)
+
+def updateCamera_firstPerson(moveSpeed, mouseSensitivity, enableMovement):
     global cameraLocalTransform
     global cameraWorldTransform
     global cameraParent
@@ -395,10 +590,9 @@ def updateCamera_firstPerson(moveSpeed, mouseSensitivity, enableMovement):
         return
     
     # movement 
-
     if (enableMovement):
         rawF = cameraWorldTransform.forward
-        f = m.subtract_3d(rawF, project_3d(rawF, np.asarray([0.0,1.0,0.0])))
+        f = m.normalize_3d(m.subtract_3d(rawF, project_3d(rawF, np.asarray([0.0,1.0,0.0]))))
         r = cameraWorldTransform.get_right()
 
         pressed_keys = pg.key.get_pressed()
@@ -410,6 +604,11 @@ def updateCamera_firstPerson(moveSpeed, mouseSensitivity, enableMovement):
             cameraParent.add_local_position(r[0] * timeSinceLastFrame * moveSpeed,r[1] * timeSinceLastFrame * moveSpeed,r[2] * timeSinceLastFrame * moveSpeed)
         elif pressed_keys[ord('d')]:
             cameraParent.add_local_position(-r[0] * timeSinceLastFrame * moveSpeed,-r[1] * timeSinceLastFrame * moveSpeed,-r[2] * timeSinceLastFrame * moveSpeed)
+
+        if pressed_keys[ord(' ')]:
+            if (cameraParent.is_colliding()):
+                cameraParent.add_local_position(0.0,0.1,0.0)
+                cameraParent.add_velocity(0.0,10.0,0.0)
 
     # rotation
     xChange = mouseChange[0]
@@ -615,34 +814,28 @@ def namesMatch(a,b):
 
 # draw a rectangle on the screen
 def draw_rect(frameArray, xPos, yPos, xSize, ySize, color):
-    global screenWidth
-    global screenHeight
-
     minX = int(xPos-xSize/2)
     maxX = int(xPos+xSize/2)
 
     minY = int(yPos-ySize/2)
     maxY = int(yPos+ySize/2)
     
-    for x in range(max(0,minX),min(screenWidth-1,maxX)):
-        for y in range(max(0,minY),min(screenHeight-1,maxY)):
+    for x in range(max(0,minX),min(pg3d_rendering.renderConfig.screenWidth-1,maxX)):
+        for y in range(max(0,minY),min(pg3d_rendering.renderConfig.screenHeight-1,maxY)):
             frameArray[x,y] = color.astype('uint8')
 
     return frameArray
 
 # draw a circle on the screen
 def draw_circle(frameArray, xPos, yPos, radius, color):
-    global screenWidth
-    global screenHeight
-
     minX = int(xPos - radius)
     maxX = int(xPos + radius)
 
     minY = int(yPos - radius)
     maxY = int(yPos + radius)
     
-    for x in range(max(0,minX),min(screenWidth-1,maxX)):
-        for y in range(max(0,minY),min(screenHeight-1,maxY)):
+    for x in range(max(0,minX),min(pg3d_rendering.renderConfig.screenWidth-1,maxX)):
+        for y in range(max(0,minY),min(pg3d_rendering.renderConfig.screenHeight-1,maxY)):
             if ((x - xPos) * (x - xPos) + (y - yPos) * (y - yPos) < radius * radius):
                 frameArray[x,y] = color.astype('uint8')
 
