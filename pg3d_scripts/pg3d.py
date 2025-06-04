@@ -78,6 +78,42 @@ def init(w, h, wActual, hActual, ver):
     pg.mouse.set_visible(0)
     pg.mouse.set_pos(pg3d_rendering.renderConfig.screenWidth/2,pg3d_rendering.renderConfig.screenHeight/2)
 
+# refreshing the object heirarchy
+# DO NOT CALL THIS EVERY FRAME, IT'LL BE SLOW
+def refreshObjectHeirarchy():
+    # this list will become the object registry, sorted by child level
+    sortedObjects = []
+
+    # the idea here is to look for all object of index 0,
+    # then loop over again looking for 1,
+    # and do that until you loop over everything without finding an index match
+    currentlyLookingForLevel = 0
+    hasFoundObject = True
+    while (hasFoundObject):
+        hasFoundObject = False
+
+        for i in range(Model._registry):
+            if (Model._registry[i].childLevel == currentlyLookingForLevel):
+                sortedObjects.append(Model._registry[i])
+                hasFoundObject = True
+        
+        # after looping, increment the desired level
+        currentlyLookingForLevel += 1
+
+    # setting the registry equal to the sorted one, index by index
+    for i in range(len(Model._registry)):
+        Model._registry[i] = sortedObjects[i]
+
+# with the heirarchy refreshed, 
+# we now have to loop through the objects to refresh their local/world vectors
+# (if it isn't obvious, call this AFTER refreshObjectHeirarchy() or stuff breaks)
+def refreshObjectTransforms():
+    for i in range(Model._registry):
+        # temp variable so I don't have to keep typing Model._registry[i]
+        obj = Model._registry[i]
+
+        # TODO: the rest of this function
+
 def disableBackfaceCulling():
     global backfaceCulling
     backfaceCulling = False
@@ -278,6 +314,11 @@ def setCameraPosition(x,y,z):
     camera[0] = x
     camera[1] = y
     camera[2] = z
+
+# how much has the cursor changed since last frame?
+# this is thankfully already a variable
+def getCursorChange():
+    return mouseChange
 
 def updateCursor():
     global mousePos

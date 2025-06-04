@@ -17,6 +17,17 @@ class Model:
     # (there is a collider TAG too, because it makes it easier to search through objects (objects have less tags than data), but that might change)
     data = {}
 
+    # how many parents does this object have?
+    # not a child --> 0
+    # child of an object --> 1
+    # child of an object, which itself is a child of an object --> 2
+
+    # it's used to sort the heirarchy so that transforms can be applied properly
+    childLevel = 0
+
+    # we don't need a reference to all children, but we DO for the parent
+    parent = None
+
     # essentially a unity transform component:
 
     # scale, then rotation, then position is applied
@@ -341,3 +352,71 @@ class Model:
         point[5] += self.position[2]
 
         return point
+    
+# since objects now have parents and children, every object will have a WORLD set of transforms and a set of LOCAL transforms
+class ModelTransform:
+    # midpoint isn't on here because the world-space midpoint is really the only one that'll be used
+
+    # velocity isn't on here because what even is local velocity anyways?
+
+    # scale, then rotation, then position is applied
+    position = np.asarray([0.0,0.0,0.0])
+    forward = np.asarray([0.0,0.0,1.0])
+    up = np.asarray([0.0,1.0,0.0])
+    scale = np.asarray([1.0,1.0,1.0])
+
+    def __init__(self, pos, f, u, scl):
+        self.position = pos
+
+        self.forward = f
+        self.up = u
+
+        self.scale = scl
+    
+    # this function is a bit weird
+    # it adds THE CURRENT TRANSFORM DATA to ANOTHER SET OF TRANSFORM DATA
+    # (not adding another set to this set)
+
+    # this is how world-space transforms are calculated:
+    # the local transform is added to the PARENT'S world transform
+
+    # since we're looping over all objects starting with parents and going down,
+    # the parent's world space transform will have already been calculated
+
+    def add_self_to_other(self, otherTransform):
+        # positions can just be added (because a + b = b + a)
+        self.position[0] += otherTransform.position[0]
+        self.position[1] += otherTransform.position[1]
+        self.position[2] += otherTransform.position[2]
+
+        # scales are multiplied, because if this one is 2 and the other one is 4, 
+        # then it should be 2 times 4, or 8
+
+        # can just be applied as an offset (because, like addition, a x b = b x a)
+        self.scale[0] *= otherTransform.scale[0]
+        self.scale[1] *= otherTransform.scale[1]
+        self.scale[2] *= otherTransform.scale[2]
+
+        # rotations are the tricky part
+        # I have to figure out how rotated the forward and up vectors are from the other's, 
+        # then store that as a rotational offset of sorts, then apply that rotation to the other's vectors to get the final rotations
+
+        # so the first question is, what two axis and angles get us from the other pose to this one?
+
+        # rotating from the OTHER forward vector to THIS one
+        forwardVectorAxis = m.normalize_3d(m.cross_3d(otherTransform.forward,self.forward))
+        forwardVectorAngle = m.angle_3d(self.forward,otherTransform.forward)
+
+        if (forwardVectorAngle == 0):
+            forwardVectorAxis = otherTransform.forward
+        else:
+            # rotate BOTH THE FORWARD AND UP VECTORS using this rotation
+
+        # FROM THERE, rotating from the OTHER UP VECTOR to THIS ONE
+        upVectorAxis = m.normalize_3d(m.cross_3d(   m.rotate_vector_3d(otherTransform.up,forwardVectorAxis,forwardVectorAngle)        ,self.up))
+        upVectorAngle = m.angle_3d(self.up,   m.rotate_vector_3d(otherTransform.up,forwardVectorAxis,forwardVectorAngle)        )
+
+        # rotate ONLY THE UP VECTOR, since rotating the forward vector won't do anything
+
+        # TODO: finish this function
+        # (oh god vectors)
