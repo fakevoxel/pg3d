@@ -1,7 +1,7 @@
-import pg3d as engine
+from pg3d_scripts import pg3d as engine
 import numpy as np
 import pygame as pg
-from pg3d import Color
+from pg3d_scripts.pg3d import Color
 
 # This is an example of how to use the PG3D engine to make a platformer.
 # Feel free to either use this script as a starting point for your own projects or start from scratch!
@@ -21,9 +21,6 @@ def main():
     engine.disableBackfaceCulling()
     # It also has the "texture" rendering mode on by default, which we want.
 
-    level1 = engine.createLevel("1")
-    level2 = engine.createLevel("2")
-
     # Something to note: objects cannot have the same name!
 
     # spawning a row of platforms
@@ -33,18 +30,13 @@ def main():
         engine.getObject("platform" + str(i+1)).add_box_collider(10.0,1.0,10.0)
         engine.getObject("platform" + str(i+1)).set_scale(5.0,1.0,5.0)
 
-        if (i < 3):
-            level1.addObject("platform" + str(i+1))
-        else:
-            level2.addObject("platform" + str(i+1))
-
     engine.spawnObjectWithTexture('3d models/coin/coin.obj','3d models/coin/coin_texture.png',"coin", 0.0 + 15 * 4,2.0,0.0, [], Color.white)
     engine.getObject("coin").set_scale(2,2,2)
     # add a trigger so that we can detect when the coin is picked up
     engine.getObject("coin").add_box_trigger(2.0,2.0,2.0)
 
     # interact tag so it works with trigger colliders
-    engine.spawnCube(0.0, 50.0, 0.0, ["physics","interact"])
+    engine.spawnCube("cube", 0.0, 50.0, 0.0, ["physics","interact","gravity"])
     engine.getObject("cube").add_box_collider(2.0,2.0,2.0)
 
     # For the player object, we want it to be invisible so it doesn't block the camera.
@@ -52,7 +44,7 @@ def main():
     # but for performance reasons it's better to just call hide() on the object.
     engine.getObject("cube").hide()
 
-    engine.parentCamera("cube",0.0,4.0,0.0)
+    engine.parentCameraWithName("cube",0.0,4.0,0.0)
 
     engine.enablePhysics()
 
@@ -71,7 +63,7 @@ def main():
             # jumping
             if event.type == pg.KEYDOWN and event.key == pg.K_SPACE: 
                 if (playerObj.is_colliding()):
-                    playerObj.add_position(0.0,0.1,0.0)
+                    playerObj.add_local_position(0.0,0.1,0.0)
                     playerObj.add_velocity(0.0,10.0,0.0)
 
         # (annoyingly) MUST CALL update() AFTER getFrame() and drawScreen()!
@@ -80,7 +72,7 @@ def main():
 
         # make sure there actually IS a coin
         if (engine.getObject("coin") != None):
-            engine.getObject("coin").rotate(np.asarray([0.0,1.0,0.0]),0.1)
+            engine.getObject("coin").rotate(0.1, np.asarray([0.0,1.0,0.0]))
 
             if (engine.getObject("coin").is_triggered()):
                 engine.setBackGroundColor(255,255,255)
@@ -90,7 +82,7 @@ def main():
         # A lot of games use a first person camera controller, so PG3D has that as a built-in feature.
         # All you have to do is parent the camera to an object (the object represents the player) which we did above,
         # and then call updateCamera_firstPerson() to handle movement and all that.
-        engine.updateCamera_firstPerson(10)
+        engine.updateCamera_firstPerson(10, 1, True)
 
     engine.quit()
 

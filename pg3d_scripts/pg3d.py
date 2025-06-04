@@ -147,13 +147,13 @@ def parentCamera(object, offX, offY, offZ):
     global cameraParent
 
     cameraParent = object
-    cameraLocalTransform.position = np.asarray(offX, offY, offZ)
+    cameraLocalTransform.position = np.asarray([offX, offY, offZ])
 
 def parentCameraWithName(objName, offX, offY, offZ):
     global cameraParent
 
     cameraParent = getObject(objName)
-    cameraLocalTransform.position = np.asarray(offX, offY, offZ)
+    cameraLocalTransform.position = np.asarray([offX, offY, offZ])
 
 def unParentCamera():
     global cameraParent
@@ -243,12 +243,12 @@ def update():
                     # turns out, this isn't an amazing solution
                     # gotta implement raycasting before I can rlly solve this properly
                     # fortunately, it's enough for a platformer game
-                    i.add_position(closestPointOnThis[0] - desiredPoint[0],closestPointOnThis[1] - desiredPoint[1],closestPointOnThis[2] - desiredPoint[2])
+                    i.add_local_position(closestPointOnThis[0] - desiredPoint[0],closestPointOnThis[1] - desiredPoint[1],closestPointOnThis[2] - desiredPoint[2])
 
                     # not a great permanent solution, but make the velocity 0 to make sure the collision stays resolved
                     i.set_velocity(0,0,0)
 
-            i.add_position(i.linearVelocity[0] * timeSinceLastFrame,i.linearVelocity[1] * timeSinceLastFrame,i.linearVelocity[2] * timeSinceLastFrame)
+            i.add_local_position(i.linearVelocity[0] * timeSinceLastFrame,i.linearVelocity[1] * timeSinceLastFrame,i.linearVelocity[2] * timeSinceLastFrame)
                 
 
 def getFrame():
@@ -403,13 +403,13 @@ def updateCamera_firstPerson(moveSpeed, mouseSensitivity, enableMovement):
 
         pressed_keys = pg.key.get_pressed()
         if pressed_keys[ord('w')]:
-            cameraParent.add_position(f[0] * timeSinceLastFrame * moveSpeed,f[1] * timeSinceLastFrame * moveSpeed,f[2] * timeSinceLastFrame * moveSpeed)
+            cameraParent.add_local_position(f[0] * timeSinceLastFrame * moveSpeed,f[1] * timeSinceLastFrame * moveSpeed,f[2] * timeSinceLastFrame * moveSpeed)
         elif pressed_keys[ord('s')]:
-            cameraParent.add_position(-f[0] * timeSinceLastFrame * moveSpeed,-f[1] * timeSinceLastFrame * moveSpeed,-f[2] * timeSinceLastFrame * moveSpeed)
+            cameraParent.add_local_position(-f[0] * timeSinceLastFrame * moveSpeed,-f[1] * timeSinceLastFrame * moveSpeed,-f[2] * timeSinceLastFrame * moveSpeed)
         if pressed_keys[ord('a')]:
-            cameraParent.add_position(r[0] * timeSinceLastFrame * moveSpeed,r[1] * timeSinceLastFrame * moveSpeed,r[2] * timeSinceLastFrame * moveSpeed)
+            cameraParent.add_local_position(r[0] * timeSinceLastFrame * moveSpeed,r[1] * timeSinceLastFrame * moveSpeed,r[2] * timeSinceLastFrame * moveSpeed)
         elif pressed_keys[ord('d')]:
-            cameraParent.add_position(-r[0] * timeSinceLastFrame * moveSpeed,-r[1] * timeSinceLastFrame * moveSpeed,-r[2] * timeSinceLastFrame * moveSpeed)
+            cameraParent.add_local_position(-r[0] * timeSinceLastFrame * moveSpeed,-r[1] * timeSinceLastFrame * moveSpeed,-r[2] * timeSinceLastFrame * moveSpeed)
 
     # rotation
     xChange = mouseChange[0]
@@ -418,7 +418,7 @@ def updateCamera_firstPerson(moveSpeed, mouseSensitivity, enableMovement):
     # you HAVEE to call camera_right() again to deal with the result of the first rotation
     # otherwise, weird things happen that aren't fun
     rotate_camera(np.asarray([0.0,1.0,0.0]),xChange * -0.001 * mouseSensitivity)
-    rotate_camera(cameraWorldTransform.get_right(),yChange * 0.001 * mouseSensitivity)
+    rotate_camera(cameraLocalTransform.get_right(),yChange * 0.001 * mouseSensitivity)
 
 def resetCameraRotation():
     cameraLocalTransform.up = np.asarray([0.0,1.0,0.0])
@@ -553,7 +553,7 @@ def spawnObjectWithTexture(objPath, texturePath, name, x, y, z, tags, color):
     name = nameModel(name)
     Model(name,objPath, texturePath,tags,color)
 
-    getObject(name).set_position(x,y,z)
+    getObject(name).set_local_position(x,y,z)
 
 def spawnObjectWithColor(objPath, name, x, y, z, tags, colorR, colorG, colorB):
     if (getFirstIndex(name, '(') < len(name)):
@@ -561,7 +561,7 @@ def spawnObjectWithColor(objPath, name, x, y, z, tags, colorR, colorG, colorB):
     name = nameModel(name)
     Model(name,objPath, '',tags,np.asarray([colorR,colorG,colorB]).astype('uint8'))
 
-    getObject(name).set_position(x,y,z)
+    getObject(name).set_local_position(x,y,z)
 
 def getObjectsWithTag(tag):
     toReturn = []
@@ -838,14 +838,6 @@ def index_in_array(array, item):
 # I don't like typing out the np.asarray([]) function, so this one makes colors a bit less verbose
 def constructColor(r,g,b):
     return np.asarray([r,g,b]).astype('uint8')
-
-# whether a point is in an AABB (axis aligned bounding box)
-# again, the sizes are SIZES, NOT EXTENTS in each direction
-def point_in_box_3d(point, boxCenter, boxSizes):
-    if (point[0] > boxCenter[0] - boxSizes[0]/2 and point[1] > boxCenter[1] - boxSizes[1]/2 and point[2] > boxCenter[2] - boxSizes[2]/2 and point[0] < boxCenter[0] + boxSizes[0]/2 and point[1] < boxCenter[1] + boxSizes[1]/2 and point[2] < boxCenter[2] + boxSizes[2]/2):
-        return True
-    else:
-        return False
     
 # project vector a onto vector b (3D)
 def project_3d(a,b):

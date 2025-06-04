@@ -384,6 +384,13 @@ def draw_triangle(sW, sH, frame, z_buffer, texture, proj_points, uv_points, minX
             else:
                 inTriangle = False
 
+            if (not cullBack):
+                if ((dotab <= 0) and (dotbc <= 0) and (dotca <= 0)):
+                    inTriangle = True
+                    dotab *= -1
+                    dotbc *= -1
+                    dotca *= -1
+
             if (inTriangle):
                 a0 = dotbc / 2
                 a1 = dotca / 2

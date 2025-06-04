@@ -213,17 +213,17 @@ class Model:
         localPoint = np.asarray([foreignPoint[0] - worldSpaceMidpoint[0],foreignPoint[1] - worldSpaceMidpoint[1],foreignPoint[2] - worldSpaceMidpoint[2]])
 
         # now, we rotate it using the opposite rotation we would use to transform a point
-        forwardRotationAxis = m.normalize_3d(m.cross_3d(np.asarray([0.0,0.0,1.0]), self.forward))
-        forwardRotationAngle = m.angle_3d(np.asarray([0.0,0.0,1.0]), self.forward)
+        forwardRotationAxis = m.normalize_3d(m.cross_3d(np.asarray([0.0,0.0,1.0]), self.worldTransform.forward))
+        forwardRotationAngle = m.angle_3d(np.asarray([0.0,0.0,1.0]), self.worldTransform.forward)
         rotatedPoint = localPoint
         if forwardRotationAngle > 0:
             rotatedPoint = m.rotate_vector_3d(localPoint, forwardRotationAxis, forwardRotationAngle)
         else:
-            forwardRotationAxis = self.forward
+            forwardRotationAxis = self.worldTransform.forward
             
         rotatedUpAxis = m.rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
-        upRotationAxis = m.normalize_3d(m.cross_3d(rotatedUpAxis, self.up))
-        upRotationAngle = m.angle_3d(rotatedUpAxis, self.up)
+        upRotationAxis = m.normalize_3d(m.cross_3d(rotatedUpAxis, self.worldTransform.up))
+        upRotationAngle = m.angle_3d(rotatedUpAxis, self.worldTransform.up)
         
         if upRotationAngle > 0:
             rotatedPoint = m.rotate_vector_3d(rotatedPoint, upRotationAxis, upRotationAngle)
@@ -251,17 +251,17 @@ class Model:
         localPoint = np.asarray([foreignPoint[0] - worldSpaceMidpoint[0],foreignPoint[1] - worldSpaceMidpoint[1],foreignPoint[2] - worldSpaceMidpoint[2]])
 
         # now, we rotate it using the opposite rotation we would use to transform a point
-        forwardRotationAxis = m.normalize_3d(m.cross_3d(np.asarray([0.0,0.0,1.0]), self.forward))
-        forwardRotationAngle = m.angle_3d(np.asarray([0.0,0.0,1.0]), self.forward)
+        forwardRotationAxis = m.normalize_3d(m.cross_3d(np.asarray([0.0,0.0,1.0]), self.worldTransform.forward))
+        forwardRotationAngle = m.angle_3d(np.asarray([0.0,0.0,1.0]), self.worldTransform.forward)
         rotatedPoint = localPoint
         if forwardRotationAngle > 0:
             rotatedPoint = m.rotate_vector_3d(localPoint, forwardRotationAxis, forwardRotationAngle)
         else:
-            forwardRotationAxis = self.forward
+            forwardRotationAxis = self.worldTransform.forward
 
         rotatedUpAxis = m.rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
-        upRotationAxis = m.normalize_3d(m.cross_3d(rotatedUpAxis, self.up))
-        upRotationAngle = m.angle_3d(rotatedUpAxis, self.up)
+        upRotationAxis = m.normalize_3d(m.cross_3d(rotatedUpAxis, self.worldTransform.up))
+        upRotationAngle = m.angle_3d(rotatedUpAxis, self.worldTransform.up)
 
         if upRotationAngle > 0:
             rotatedPoint = m.rotate_vector_3d(rotatedPoint, upRotationAxis, upRotationAngle)
@@ -309,7 +309,7 @@ class Model:
             if (not i.shouldBePhysics):
                     continue
             
-            if (self.is_point_inside(i.position, self.data["trigger_bounds"])):
+            if (self.is_point_inside(i.worldTransform.position, self.data["trigger_bounds"])):
                 return True
             
         return False
@@ -524,9 +524,9 @@ class ModelTransform:
         yVector = np.asarray([otherTransform.up[0] * self.position[1], otherTransform.up[1] * self.position[1], otherTransform.up[2] * self.position[1]])
         zVector = np.asarray([otherTransform.forward[0] * self.position[2], otherTransform.forward[1] * self.position[2], otherTransform.forward[2] * self.position[2]])
 
-        self.position[0] = xVector[0] + yVector[0] + zVector[0]
-        self.position[1] = xVector[1] + yVector[1] + zVector[1]
-        self.position[2] = xVector[2] + yVector[2] + zVector[2]
+        self.position[0] = otherTransform.position[0] + xVector[0] + yVector[0] + zVector[0]
+        self.position[1] = otherTransform.position[1] + xVector[1] + yVector[1] + zVector[1]
+        self.position[2] = otherTransform.position[2] + xVector[2] + yVector[2] + zVector[2]
 
         # scales are multiplied, because if this one is 2 and the other one is 4, 
         # then it should be 2 times 4, or 8
@@ -568,7 +568,7 @@ class ModelTransform:
 
         # rotate ONLY THE UP VECTOR, since rotating the forward vector won't do anything
 
-        newUp = m.rotate_vector_3d(otherTransform.up, upVectorAxis, upVectorAngle)
+        newUp = m.rotate_vector_3d(m.rotate_vector_3d(otherTransform.up,forwardVectorAxis,forwardVectorAngle), upVectorAxis, upVectorAngle)
 
         self.up[0] = newUp[0]
         self.up[1] = newUp[1]

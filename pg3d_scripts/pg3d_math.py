@@ -121,6 +121,14 @@ def normalize_3d(a):
 
     return np.asarray([a[0]/l,a[1]/l,a[2]/l])
 
+# whether a point is in an AABB (axis aligned bounding box)
+# again, the sizes are SIZES, NOT EXTENTS in each direction
+def point_in_box_3d(point, boxCenter, boxSizes):
+    if (point[0] > boxCenter[0] - boxSizes[0]/2 and point[1] > boxCenter[1] - boxSizes[1]/2 and point[2] > boxCenter[2] - boxSizes[2]/2 and point[0] < boxCenter[0] + boxSizes[0]/2 and point[1] < boxCenter[1] + boxSizes[1]/2 and point[2] < boxCenter[2] + boxSizes[2]/2):
+        return True
+    else:
+        return False
+
 # rotate a vector (x,y,z) around another vector, by an angle
 @njit
 def rotate_vector_3d(vector, axis, angle):
