@@ -36,7 +36,7 @@ class Model:
     worldTransform = None
     localTransform = None
 
-    # physics stuff
+    # physics stuff, not a part of the transform class
     linearVelocity = np.asarray([0.0,0.0,0.0])
     angularVelocity = np.asarray([0.0,0.0,0.0])
     
@@ -60,11 +60,9 @@ class Model:
 
         self.tags = tags
 
-        self.position = np.asarray([0.0,0.0,0.0])
-        self.forward = np.asarray([0.0,0.0,1.0])
-        self.up = np.asarray([0.0,1.0,0.0])
-        # scale is for each axis
-        self.scale = np.asarray([1.0,1.0,1.0])
+        # both the same, since obj doesn't start out as a child
+        self.localTransform = ModelTransform(np.asarray([0.0,0.0,0.0]), np.asarray([0.0,0.0,1.0]), np.asarray([0.0,1.0,0.0]), np.asarray([1.0,1.0,1.0]))
+        self.worldTransform = ModelTransform(np.asarray([0.0,0.0,0.0]), np.asarray([0.0,0.0,1.0]), np.asarray([0.0,1.0,0.0]), np.asarray([1.0,1.0,1.0]))
 
         self._registry.append(self)
         # points are stored using nine numbers
@@ -78,9 +76,16 @@ class Model:
 
         self.data = {}
 
+        self.children = []
+        self.childLevel = 0
+
         # for textured models, the color is multiplied by the texture
         # for colored models, the color applies to all geometry
         self.color = color
+    
+    # changes the texture on the model
+    def setTexture(self, texture_path):
+        self.texture = pg.surfarray.array3d(pg.image.load(texture_path))
 
     # switching between texture types ***********
     def setTextureType(self, newType):
@@ -89,7 +94,9 @@ class Model:
         self.textureType = "opaque"
     def setAsTransparent(self):
         self.textureType = "alphaclip"
-    # ***********
+    # ********************************************
+
+    # transform stuff ********************************************
 
     # set the transform based on the parent
     def syncTransformWithParent(self):
@@ -108,30 +115,89 @@ class Model:
         self.worldTransform.copy(self.localTransform)
         self.worldTransform.add_self_to_other(self.parent.worldTransform) # as mentioned basically everywhere, the parent's world transform HAS TO BE DONE FIRST
 
-        self.worldTransform
+    def setParent(self, otherObject):
+        if (otherObject == None):
+            # if the object WAS a child, remove all refs
+            if (self.parent != None):
+                self.parent.children.pop(self)
 
+            self.parent = None
+            self.childLevel = 0
+            # that way, you can call setParent(None) to make it not a child
+            return
+        self.parent = otherObject
+        self.childLevel = otherObject.childLevel + 1
+
+        self.syncChildren()
+
+        otherObject.children.append(self)
+
+        engine.refreshHeirarchy()
+    # again, so I don't have to call 2 functions
+    def syncChildren(self):
+        self.syncChildrenLevels()
+        self.syncChildrenTransforms()
+    # loop through all children and refresh their child level, 
+    # which is to say how far down a family tree they are
+    def syncChildrenLevels(self):
+        for i in range(len(self.children)):
+            self.children[i].childLevel = self.childLevel + 1
+            self.children[i].syncChildrenLevels()
     # loop through all children and refresh their transforms
     def syncChildrenTransforms(self):
-        for i in range(len(self.children)):
+        for i in self.children:
             i.syncTransformWithParent()
             i.syncChildrenTransforms()
 
-    # changes the texture on the model
-    def setTexture(self, texture_path):
-        self.texture = pg.surfarray.array3d(pg.image.load(texture_path))
-
+    # random boolean stuff ********************************************
     def show(self):
         self.shouldBeDrawn = True
-
     def hide(self):
         self.shouldBeDrawn = False
 
     def disablePhysicsInteraction(self):
         self.shouldBePhysics = False
-
     def enablePhysicsInteraction(self):
         self.shouldBePhysics = True
+    # ********************************************
 
+    # adding a variable to this object
+    def add_data(self, key, value):
+        # update the entry in the dictionary
+        self.data[key] = value
+
+    # figure out where in world space the midpoint of the object is
+    # the midpoint is used for collision detection and stuff
+    def calculateRawMidpoint(self):
+        toReturn = np.asarray([0.0,0.0,0.0])
+
+        for i in self.points:
+            toReturn[0] += i[0] / len(self.points)
+            toReturn[1] += i[1] / len(self.points)
+            toReturn[2] += i[2] / len(self.points)
+
+        return toReturn
+    # the midpoint, in world space
+    # (provided the raw midpoint has already been calculated, which it should be cuz thats done in init())
+    def midpoint(self):
+        rawMidpoint = np.asarray([self.rawMidpoint[0],self.rawMidpoint[1],self.rawMidpoint[2],0.0,0.0,0.0])
+        return self.transform_point(rawMidpoint)
+
+    # whether the tags array has a given tag
+    def hasTag(self, tag):
+        for i in self.tags:
+            if (i == tag):
+                return True
+            
+        return False
+    
+    def add_tag(self, tagName):
+        if (m.array_has_item(self.tags, tagName)):
+            return
+        self.tags.append(tagName)
+    
+    # COLLISION STUFF ****************************************************************************************
+    
     # given a point, find the closest point ON THIS OBJECT'S COLLIDER
     def closest_point(self, foreignPoint):
         # we're assuming that if the object has a collider tag, it has the necessary data
@@ -170,8 +236,6 @@ class Model:
 
         rotatedPoint = clampedPoint
 
-        #print(str(clampedPoint + worldSpaceMidpoint) + "     " + str(foreignPoint))
-
         # UNROTATE THE POINT
         if upRotationAngle > 0:
             rotatedPoint = m.rotate_vector_3d(clampedPoint, upRotationAxis, -upRotationAngle)
@@ -205,35 +269,6 @@ class Model:
         return m.point_in_box_3d(rotatedPoint,np.asarray([0.0,0.0,0.0]),bounds)
         
         # there's no reason to un-transform the point, we're only trying to find whether its in the box
-
-    def add_data(self, key, value):
-        # update the entry in the dictionary
-        self.data[key] = value
-
-    def calculateRawMidpoint(self):
-        toReturn = np.asarray([0.0,0.0,0.0])
-
-        for i in self.points:
-            toReturn[0] += i[0] / len(self.points)
-            toReturn[1] += i[1] / len(self.points)
-            toReturn[2] += i[2] / len(self.points)
-
-        return toReturn
-    
-    def midpoint(self):
-        rawMidpoint = np.asarray([self.rawMidpoint[0],self.rawMidpoint[1],self.rawMidpoint[2],0.0,0.0,0.0])
-        return self.transform_point(rawMidpoint)
-
-    # whether the tags array has a given tag
-    def hasTag(self, tag):
-        for i in self.tags:
-            if (i == tag):
-                return True
-            
-        return False
-
-    # when messing with models, please use the functions and don't mess with the variables themselves!
-
     def is_colliding(self):
         collidersInScene = engine.getObjectsWithTag("box_collider")
 
@@ -289,10 +324,10 @@ class Model:
 
         self.add_data("trigger_bounds", np.asarray([boundsX,boundsY,boundsZ]))
 
-    def add_tag(self, tagName):
-        if (m.array_has_item(self.tags, tagName)):
-            return
-        self.tags.append(tagName)
+    # ****************************************************************************************
+
+    # when messing with models, please use the functions and don't mess with the variables themselves!
+    # ESPECIALLY WITH TRANSFORM-COMPONENT STUFF, it makes life easier (and doesn't break the heirarchy)
 
     def add_velocity(self,x,y,z):
         self.linearVelocity[0] += x
@@ -305,79 +340,107 @@ class Model:
         self.linearVelocity[2] = z
 
     # set position to some numbers
-    def set_position(self, x, y, z):
-        self.position[0] = x
-        self.position[1] = y
-        self.position[2] = z
+    # this sets the LOCAL POSITION
+    def set_local_position(self, x, y, z):
+        self.localTransform.position[0] = x
+        self.localTransform.position[1] = y
+        self.localTransform.position[2] = z
+
+        self.syncTransformWithParent() # refreshing the world transform
+        self.syncChildren()
     
     # translate with individual numbers
-    def add_position(self, x, y, z):
-        self.position[0] += x
-        self.position[1] += y
-        self.position[2] += z
+    def add_local_position(self, x, y, z):
+        self.localTransform.position[0] += x
+        self.localTransform.position[1] += y
+        self.localTransform.position[2] += z
+
+        self.syncTransformWithParent() # refreshing the world transform
+        self.syncChildren()
 
     # rotate around any axis, using a CC angle
+    # why tf did I decide to put angle first??
     def rotate(self, angle, axis):
-        newForward = m.rotate_vector_3d(self.forward, angle, axis)
-        newUp = m.rotate_vector_3d(self.up, angle, axis)
+        newForward = m.rotate_vector_3d(self.localTransform.forward, axis, angle)
+        newUp = m.rotate_vector_3d(self.localTransform.up, axis, angle)
 
-        self.forward[0] = newForward[0]
-        self.forward[1] = newForward[1]
-        self.forward[2] = newForward[2]
+        self.localTransform.forward[0] = newForward[0]
+        self.localTransform.forward[1] = newForward[1]
+        self.localTransform.forward[2] = newForward[2]
 
-        self.up[0] = newUp[0]
-        self.up[1] = newUp[1]
-        self.up[2] = newUp[2]
+        self.localTransform.up[0] = newUp[0]
+        self.localTransform.up[1] = newUp[1]
+        self.localTransform.up[2] = newUp[2]
+
+        self.syncTransformWithParent() # refreshing the world transform
+        self.syncChildren()
 
     def get_forward(self):
-        return self.forward
+        return self.localTransform.forward
 
     def get_up(self):
-        return self.up
+        return self.localTransform.up
 
-    def get_right(self):
-        f = self.forward
-        u = self.up
-
-        crossProduct = m.normalize_3d(m.cross_3d(f, u))
-        
-        return np.asarray([-crossProduct[0],-crossProduct[1],-crossProduct[2]])
-
-    def set_forward(self, v):
-        appliedRotationAxis = m.normalize_3d(m.cross_3d(self.forward, v))
-        appliedRotationAngle = m.angle_3d(self.forward, v)
+    def set_local_forward(self, v):
+        appliedRotationAxis = m.normalize_3d(m.cross_3d(self.localTransform.forward, v))
+        appliedRotationAngle = m.angle_3d(self.localTransform.forward, v)
 
         if (appliedRotationAngle > 0.001 and appliedRotationAngle < np.pi - 0.001):
-            self.forward = m.rotate_vector_3d(self.forward, appliedRotationAxis, appliedRotationAngle)
-            self.up = m.rotate_vector_3d(self.up, appliedRotationAxis, appliedRotationAngle)
+            self.localTransform.forward = m.rotate_vector_3d(self.localTransform.forward, appliedRotationAxis, appliedRotationAngle)
+            self.localTransform.up = m.rotate_vector_3d(self.localTransform.up, appliedRotationAxis, appliedRotationAngle)
 
-    def set_up(self, v):
-        appliedRotationAxis = m.cross_3d(self.up, v)
-        appliedRotationAngle = m.angle_3d(self.up, v)
+        self.syncTransformWithParent() # refreshing the world transform
+        self.syncChildren()
 
-        self.forward = m.rotate_vector_3d(self.forward, appliedRotationAxis, appliedRotationAngle)
-        self.up = m.rotate_vector_3d(self.up, appliedRotationAxis, appliedRotationAngle)
+    def set_local_up(self, v):
+        appliedRotationAxis = m.cross_3d(self.localTransform.up, v)
+        appliedRotationAngle = m.angle_3d(self.localTransform.up, v)
+
+        self.localTransform.forward = m.rotate_vector_3d(self.localTransform.forward, appliedRotationAxis, appliedRotationAngle)
+        self.localTransform.up = m.rotate_vector_3d(self.localTransform.up, appliedRotationAxis, appliedRotationAngle)
+
+        self.syncTransformWithParent() # refreshing the world transform
+        self.syncChildren()
 
     # set scale with three numbers
     def set_scale(self, a, b, c):
-        self.scale[0] = a
-        self.scale[1] = b
-        self.scale[2] = c
+        self.localTransform.scale[0] = a
+        self.localTransform.scale[1] = b
+        self.localTransform.scale[2] = c
+
+        self.syncTransformWithParent() # refreshing the world transform
+        self.syncChildren()
+    # same as above, but with one number
+    def set_scale_to_number(self, n):
+        self.localTransform.scale[0] = n
+        self.localTransform.scale[1] = n
+        self.localTransform.scale[2] = n
+
+        self.syncTransformWithParent() # refreshing the world transform
+        self.syncChildren()
+    # not usually gonna be used, but hey? someone might want it
+    def add_scale(self, a, b, c):
+        self.localTransform.scale[0] += a
+        self.localTransform.scale[1] += b
+        self.localTransform.scale[2] += c
+        
+        self.syncTransformWithParent() # refreshing the world transform
+        self.syncChildren()
 
     def transform_point(self, point):
         # scale first
-        point[3] = point[0] * self.scale[0]
-        point[4] = point[1] * self.scale[1]
-        point[5] = point[2] * self.scale[2]
+        point[3] = point[0] * self.worldTransform.scale[0]
+        point[4] = point[1] * self.worldTransform.scale[1]
+        point[5] = point[2] * self.worldTransform.scale[2]
 
         # then rotation
-        forwardRotationAxis = m.normalize_3d(m.cross_3d(np.asarray([0.0,0.0,1.0]), self.forward))
-        forwardRotationAngle = m.angle_3d(np.asarray([0.0,0.0,1.0]), self.forward)
+        forwardRotationAxis = m.normalize_3d(m.cross_3d(np.asarray([0.0,0.0,1.0]), self.worldTransform.forward))
+        forwardRotationAngle = m.angle_3d(np.asarray([0.0,0.0,1.0]), self.worldTransform.forward)
         if (forwardRotationAngle <= 0):
-            forwardRotationAxis = self.forward
+            forwardRotationAxis = self.worldTransform.forward
         rotatedUpAxis = m.rotate_vector_3d(np.asarray([0.0,1.0,0.0]), forwardRotationAxis, forwardRotationAngle)
-        upRotationAxis = m.normalize_3d(m.cross_3d(rotatedUpAxis, self.up))
-        upRotationAngle = m.angle_3d(rotatedUpAxis, self.up)
+        upRotationAxis = m.normalize_3d(m.cross_3d(rotatedUpAxis, self.worldTransform.up))
+        upRotationAngle = m.angle_3d(rotatedUpAxis, self.worldTransform.up)
         rotatedPoint = point
         if forwardRotationAngle > 0:
             rotatedPoint = m.rotate_point_3d(point, forwardRotationAxis, forwardRotationAngle)
@@ -388,9 +451,9 @@ class Model:
         point[5] = rotatedPoint[5]
 
         # then position
-        point[3] += self.position[0]
-        point[4] += self.position[1]
-        point[5] += self.position[2]
+        point[3] += self.worldTransform.position[0]
+        point[4] += self.worldTransform.position[1]
+        point[5] += self.worldTransform.position[2]
 
         return point
     
@@ -432,6 +495,15 @@ class ModelTransform:
         self.up[0] = otherTransform.up[0]
         self.up[1] = otherTransform.up[1]
         self.up[2] = otherTransform.up[2]
+
+    def get_right(self):
+        f = self.forward
+        u = self.up
+
+        crossProduct = m.normalize_3d(m.cross_3d(f, u))
+
+        # negative, because we're using a left-handed coordinate system
+        return np.asarray([-crossProduct[0],-crossProduct[1],-crossProduct[2]])
     
     # this function is a bit weird
     # it adds THE CURRENT TRANSFORM DATA to ANOTHER SET OF TRANSFORM DATA
@@ -445,9 +517,16 @@ class ModelTransform:
 
     def add_self_to_other(self, otherTransform):
         # positions can just be added (because a + b = b + a)
-        self.position[0] += otherTransform.position[0]
-        self.position[1] += otherTransform.position[1]
-        self.position[2] += otherTransform.position[2]
+
+        otherRight = otherTransform.get_right()
+
+        xVector = np.asarray([otherRight[0] * self.position[0], otherRight[1] * self.position[0], otherRight[2] * self.position[0]])
+        yVector = np.asarray([otherTransform.up[0] * self.position[1], otherTransform.up[1] * self.position[1], otherTransform.up[2] * self.position[1]])
+        zVector = np.asarray([otherTransform.forward[0] * self.position[2], otherTransform.forward[1] * self.position[2], otherTransform.forward[2] * self.position[2]])
+
+        self.position[0] = xVector[0] + yVector[0] + zVector[0]
+        self.position[1] = xVector[1] + yVector[1] + zVector[1]
+        self.position[2] = xVector[2] + yVector[2] + zVector[2]
 
         # scales are multiplied, because if this one is 2 and the other one is 4, 
         # then it should be 2 times 4, or 8
@@ -469,6 +548,10 @@ class ModelTransform:
 
         if (forwardVectorAngle == 0):
             forwardVectorAxis = np.asarray([0.0,0.0,1.0])
+
+            self.forward[0] = otherTransform.forward[0]
+            self.forward[1] = otherTransform.forward[1]
+            self.forward[2] = otherTransform.forward[2]
         else:
             # rotate BOTH THE FORWARD AND UP VECTORS using this rotation
             newForward = m.rotate_vector_3d(otherTransform.forward, forwardVectorAxis, forwardVectorAngle)

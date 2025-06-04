@@ -2,6 +2,9 @@ from pg3d_scripts import pg3d as engine
 import numpy as np
 import pygame as pg
 from pg3d_scripts.pg3d import Color
+from pg3d_scripts.pg3d import Vector3
+from pg3d_scripts.pg3d import Rotation
+from pg3d_scripts.pg3d_model import Model
 
 # This is an example of how to use the PG3D engine to make a platformer.
 # Feel free to either use this script as a starting point for your own projects or start from scratch!
@@ -26,7 +29,11 @@ def main():
     # Something to note: objects cannot have the same name!
 
     # interact tag so it works with trigger colliders
-    engine.spawnCube(0.0, 0.0, 0.0, [])
+    engine.spawnCube("cube", 0.0, 0.0, 0.0, [])
+
+    engine.spawnCube("cube 2", 0.0, 2.0, 0.0, []).set_scale(2,2,2)
+
+    engine.getObject("cube 2").setParent(engine.getObject("cube"))
 
     running = True
     while running:

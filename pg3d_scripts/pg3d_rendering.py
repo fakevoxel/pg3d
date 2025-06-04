@@ -82,7 +82,7 @@ def triangle_state(points, triangle):
         return 2 # both
 
 # z-buffering is still used EVEN during wireframe
-def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, texture_uv, texture_map, texture, color, textureType):
+def draw_model(mesh, frame, points, triangles, cameraTransform, light_dir, z_buffer, texture_uv, texture_map, texture, color, textureType):
     global renderConfig
 
     textureTypeIndex = 0

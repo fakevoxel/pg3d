@@ -6,6 +6,7 @@ import numpy as np
 from numba import njit
 import random
 from .pg3d_model import Model
+from .pg3d_model import ModelTransform
 from . import pg3d_math as m
 from . import pg3d_rendering
 
@@ -35,14 +36,12 @@ hasClockStarted = False # fixing a weird timing issue that breaks physics
 timeSinceLastFrame = 0
 
 # the camera
-# position (x,y,z), forward (x,y,z), up (x,y,z)
+# position (x,y,z), forward (x,y,z), up (x,y,z) (scale does nothing)
 # the right vector is NOT defined/kept track of because it's unecessary, knowing the other two is enough
 # why is the right vector the one that's ommited? idk
-camera = np.asarray([0.0, 0.0, 0.0,       0.0, 0.0, 1.0,      0.0, 1.0, 0.0])
-
-# object parenting is not supported, but CAMERA parenting is (bc im lazy)
+cameraWorldTransform = None
+cameraLocalTransform = None
 cameraParent = None
-cameraLocalOffset = np.asarray([0.0,0.0,0.0])
 
 physicsEnabled = False
 
@@ -50,10 +49,13 @@ sky_texture = None
 
 # ********      main engine functions:     ********   
 def init(w, h, wActual, hActual, ver):
-    global camera
     global clock
 
     global sky_texture
+
+    global cameraLocalTransform
+    global cameraWorldTransform
+    global cameraParent
 
     verticalFOV = ver * np.pi / 180
     horizontalFOV = verticalFOV*w/h
@@ -71,7 +73,10 @@ def init(w, h, wActual, hActual, ver):
 
     clock = pg.time.Clock()
 
-    camera = np.asarray([0.0, 0.0, 0.0,       0.0, 0.0, 1.0,      0.0, 1.0, 0.0])
+    # scale does nothing
+    cameraLocalTransform = ModelTransform(np.asarray([0.0, 0.0, 0.0]), np.asarray([0.0, 0.0, 1.0]), np.asarray([0.0, 1.0, 0.0]), np.asarray([0.0, 0.0, 0.0]))
+    cameraWorldTransform = ModelTransform(np.asarray([0.0, 0.0, 0.0]), np.asarray([0.0, 0.0, 1.0]), np.asarray([0.0, 1.0, 0.0]), np.asarray([0.0, 0.0, 0.0]))
+    cameraParent = None
 
     pg.display.set_mode((pg3d_rendering.renderConfig.screenWidth_actual, pg3d_rendering.renderConfig.screenHeight_actual),pg.FULLSCREEN)
 
@@ -100,7 +105,7 @@ def refreshObjectOrder():
     while (hasFoundObject):
         hasFoundObject = False
 
-        for i in range(Model._registry):
+        for i in range(len(Model._registry)):
             if (Model._registry[i].childLevel == currentlyLookingForLevel):
                 sortedObjects.append(Model._registry[i])
                 hasFoundObject = True
@@ -116,14 +121,12 @@ def refreshObjectOrder():
 # we now have to loop through the objects to refresh their local/world vectors
 # (if it isn't obvious, call this AFTER refreshObjectHeirarchy() or stuff breaks)
 def refreshObjectTransforms():
-    for i in range(Model._registry):
-        # temp variable so I don't have to keep typing Model._registry[i]
-        obj = Model._registry[i]
-
+    for i in range(len(Model._registry)):
         # the idea here is to leave the local forward, up, etc. alone
         # the WORLD transform is the one that's going to change
         
         # when the user messes with the heirarchy, the local vector won't change there either, it'll just mean something different
+        Model._registry[i].syncTransformWithParent()
 
 def disableBackfaceCulling():
     pg3d_rendering.renderConfig.backfaceCulling = False
@@ -140,12 +143,17 @@ def disablePhysics():
     physicsEnabled = False
 
 # used for camera controllers
-def parentCamera(parentName, offX, offY, offZ):
+def parentCamera(object, offX, offY, offZ):
     global cameraParent
-    global cameraLocalOffset
 
-    cameraParent = getObject(parentName)
-    cameraLocalOffset = np.asarray([offX,offY,offZ])
+    cameraParent = object
+    cameraLocalTransform.position = np.asarray(offX, offY, offZ)
+
+def parentCameraWithName(objName, offX, offY, offZ):
+    global cameraParent
+
+    cameraParent = getObject(objName)
+    cameraLocalTransform.position = np.asarray(offX, offY, offZ)
 
 def unParentCamera():
     global cameraParent
@@ -167,16 +175,6 @@ def update():
 
     global physicsEnabled
     global gravityCoefficient
-
-    global cameraParent
-    global cameraLocalOffset
-
-    if (cameraParent != None):
-        # the camera is parented, so move it to the position of the parent, plus an offset
-        parentPosition = cameraParent.position
-        camera[0] = parentPosition[0] + cameraLocalOffset[0]
-        camera[1] = parentPosition[1] + cameraLocalOffset[1]
-        camera[2] = parentPosition[2] + cameraLocalOffset[2]
 
     timeSinceLastFrame = clock.tick()*0.001
 
@@ -254,7 +252,9 @@ def update():
                 
 
 def getFrame():
-    global camera
+    global cameraWorldTransform
+    global cameraLocalTransform
+    global cameraParent
     global skyColor
 
     global renderingMode
@@ -263,12 +263,17 @@ def getFrame():
     light_dir = np.asarray([0.0,1.0,0.0])
     light_dir = light_dir/np.linalg.norm(light_dir)
 
+    # refreshing the camera's transform
+    cameraWorldTransform.copy(cameraLocalTransform)
+    if (cameraParent != None):
+        cameraWorldTransform.add_self_to_other(cameraParent.worldTransform)
+
     frame= np.ones((pg3d_rendering.renderConfig.screenWidth, pg3d_rendering.renderConfig.screenHeight, 3)).astype('uint8')
     z_buffer = np.zeros((pg3d_rendering.renderConfig.screenWidth, pg3d_rendering.renderConfig.screenHeight)) # start with some SMALL value
     # the value is small because the z buffer stores values of 1/z, so 0 represents the largest depth possible (it would be 1/infinity)
 
     if (pg3d_rendering.renderConfig.backgroundMode == "skybox"):
-        startY = int(m.dot_3d(np.asarray([0.0,-1.0,0.0]), m.camera_forward(camera)) * pg3d_rendering.renderConfig.screenHeight)
+        startY = int(m.dot_3d(np.asarray([0.0,-1.0,0.0]), cameraWorldTransform.forward) * pg3d_rendering.renderConfig.screenHeight)
         startY += pg3d_rendering.renderConfig.screenHeight
 
         # initialize the frame
@@ -284,9 +289,9 @@ def getFrame():
         if (model.shouldBeDrawn):
             # this function will move the points so that they are centered around the camera
             # basically, handling the camera position/rotation stuff
-            transform_points(model, model.points, camera)
+            transform_points(model, model.points, cameraWorldTransform)
             # this function will project the triangles onto the screen, and draw them
-            pg3d_rendering.draw_model(model, frame, model.points, model.triangles, camera, light_dir, z_buffer,
+            pg3d_rendering.draw_model(model, frame, model.points, model.triangles, cameraWorldTransform, light_dir, z_buffer,
                         model.texture_uv, model.texture_map, model.texture, model.color, model.textureType)
     
     return frame
@@ -309,20 +314,10 @@ def setWireframeColor(r,g,b):
     global wireframeColor
     wireframeColor = constructColor(r,g,b)
 
-# x,y,z is an offset
-def moveCameraToObject(object, x, y, z):
-    pos = object.position
-
-    camera[0] = pos[0] + x
-    camera[1] = pos[1] + y
-    camera[2] = pos[2] + z
-
 def setCameraPosition(x,y,z):
-    global camera
+    global cameraLocalTransform
 
-    camera[0] = x
-    camera[1] = y
-    camera[2] = z
+    cameraLocalTransform.position = np.asarray([x,y,z])
 
 # how much has the cursor changed since last frame?
 # this is thankfully already a variable
@@ -344,52 +339,53 @@ def mouse_position():
     return pg.mouse.get_pos() + mouseOffset
 
 def updateCamera_freecam(moveSpeed):
-    global camera
+    global cameraLocalTransform
     global timeSinceLastFrame
 
     pressed_keys = pg.key.get_pressed()
     if pressed_keys[ord('w')]:
-        forward = m.camera_forward(camera)
-        camera[0] += forward[0] * moveSpeed * timeSinceLastFrame
-        camera[1] += forward[1] * moveSpeed * timeSinceLastFrame
-        camera[2] += forward[2] * moveSpeed * timeSinceLastFrame
+        forward = cameraWorldTransform.forward
+        cameraLocalTransform.position[0] += forward[0] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[1] += forward[1] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[2] += forward[2] * moveSpeed * timeSinceLastFrame
     elif pressed_keys[ord('s')]:
-        forward = m.camera_forward(camera)
-        camera[0] -= forward[0] * moveSpeed * timeSinceLastFrame
-        camera[1] -= forward[1] * moveSpeed * timeSinceLastFrame
-        camera[2] -= forward[2] * moveSpeed * timeSinceLastFrame
+        forward = cameraWorldTransform.forward
+        cameraLocalTransform.position[0] -= forward[0] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[1] -= forward[1] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[2] -= forward[2] * moveSpeed * timeSinceLastFrame
     if pressed_keys[ord('a')]:
-        forward = m.camera_right(camera)
-        camera[0] += forward[0] * moveSpeed * timeSinceLastFrame
-        camera[1] += forward[1] * moveSpeed * timeSinceLastFrame
-        camera[2] += forward[2] * moveSpeed * timeSinceLastFrame
+        forward = cameraWorldTransform.get_right()
+        cameraLocalTransform.position[0] += forward[0] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[1] += forward[1] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[2] += forward[2] * moveSpeed * timeSinceLastFrame
     elif pressed_keys[ord('d')]:
-        forward = m.camera_right(camera)
-        camera[0] -= forward[0] * moveSpeed * timeSinceLastFrame
-        camera[1] -= forward[1] * moveSpeed * timeSinceLastFrame
-        camera[2] -= forward[2] * moveSpeed * timeSinceLastFrame
+        forward = cameraWorldTransform.get_right()
+        cameraLocalTransform.position[0] -= forward[0] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[1] -= forward[1] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[2] -= forward[2] * moveSpeed * timeSinceLastFrame
     if pressed_keys[ord('e')]:
-        forward = m.camera_up(camera)
-        camera[0] += forward[0] * moveSpeed * timeSinceLastFrame
-        camera[1] += forward[1] * moveSpeed * timeSinceLastFrame
-        camera[2] += forward[2] * moveSpeed * timeSinceLastFrame
+        forward = cameraWorldTransform.up
+        cameraLocalTransform.position[0] += forward[0] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[1] += forward[1] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[2] += forward[2] * moveSpeed * timeSinceLastFrame
     elif pressed_keys[ord('q')]:
-        forward = m.camera_up(camera)
-        camera[0] -= forward[0] * moveSpeed * timeSinceLastFrame
-        camera[1] -= forward[1] * moveSpeed * timeSinceLastFrame
-        camera[2] -= forward[2] * moveSpeed * timeSinceLastFrame
+        forward = cameraWorldTransform.up
+        cameraLocalTransform.position[0] -= forward[0] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[1] -= forward[1] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[2] -= forward[2] * moveSpeed * timeSinceLastFrame
 
     xChange = mouseChange[0]
     yChange = mouseChange[1]
 
-    rotate_camera(camera,m.camera_up(camera),xChange * -0.001)
-    rotate_camera(camera,m.camera_right(camera),yChange * 0.001)
+    rotate_camera(cameraLocalTransform.up,xChange * -0.001)
+    rotate_camera(cameraLocalTransform.get_right(),yChange * 0.001)
 
 def updateCamera_firstPerson(moveSpeed, mouseSensitivity, enableMovement):
     global screenWidth
     global screenHeight
 
-    global camera
+    global cameraLocalTransform
+    global cameraWorldTransform
     global cameraParent
 
     global timeSinceLastFrame
@@ -401,9 +397,9 @@ def updateCamera_firstPerson(moveSpeed, mouseSensitivity, enableMovement):
     # movement 
 
     if (enableMovement):
-        rawF = m.camera_forward(camera)
+        rawF = cameraWorldTransform.forward
         f = m.subtract_3d(rawF, project_3d(rawF, np.asarray([0.0,1.0,0.0])))
-        r = m.camera_right(camera)
+        r = cameraWorldTransform.get_right()
 
         pressed_keys = pg.key.get_pressed()
         if pressed_keys[ord('w')]:
@@ -421,17 +417,12 @@ def updateCamera_firstPerson(moveSpeed, mouseSensitivity, enableMovement):
 
     # you HAVEE to call camera_right() again to deal with the result of the first rotation
     # otherwise, weird things happen that aren't fun
-    rotate_camera(camera,np.asarray([0.0,1.0,0.0]),xChange * -0.001 * mouseSensitivity)
-    rotate_camera(camera,m.camera_right(camera),yChange * 0.001 * mouseSensitivity)
+    rotate_camera(np.asarray([0.0,1.0,0.0]),xChange * -0.001 * mouseSensitivity)
+    rotate_camera(cameraWorldTransform.get_right(),yChange * 0.001 * mouseSensitivity)
 
 def resetCameraRotation():
-    camera[3] = 0.0
-    camera[4] = 0.0
-    camera[5] = 1.0
-
-    camera[6] = 0.0
-    camera[7] = 1.0
-    camera[8] = 0.0
+    cameraLocalTransform.up = np.asarray([0.0,1.0,0.0])
+    cameraLocalTransform.forward = np.asarray([0.0,0.0,1.0])
 
 def setBackGroundColor(r,g,b):
     global skyColor
@@ -449,7 +440,7 @@ def spawnCube(name, x,y,z, tags):
     objName = nameModel(name)
     Model(objName,'pg3d_assets/cube_no-net.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
-    getObject(objName).set_position(x,y,z)
+    getObject(objName).set_local_position(x,y,z)
 
     return getObject(objName)
 
@@ -457,7 +448,7 @@ def spawnScaledCube(name, x,y,z, scale_x,scale_y,scale_z, tags):
     objName = nameModel(name)
     Model(objName,'pg3d_assets/cube.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
-    getObject(objName).set_position(x,y,z)
+    getObject(objName).set_local_position(x,y,z)
     getObject(objName).set_scale(scale_x,scale_y,scale_z)
 
     return getObject(objName)
@@ -466,7 +457,7 @@ def spawnCubeWithTexture(name, x,y,z, scale_x,scale_y,scale_z, tags, texture_pat
     objName = nameModel(name)
     Model(objName,'pg3d_assets/cube.obj', texture_path,tags, Color.white)
 
-    getObject(objName).set_position(x,y,z)
+    getObject(objName).set_local_position(x,y,z)
     getObject(objName).set_scale(scale_x,scale_y,scale_z)
 
     return getObject(objName)
@@ -476,14 +467,14 @@ def spawnPlane(name,x,y,z,tags):
     objName = nameModel(name)
     Model(objName,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
-    getObject(objName).set_position(x,y,z)
+    getObject(objName).set_local_position(x,y,z)
     return getObject(objName)
 
 def spawnScaledPlane(name,x,y,z,scale_x,scale_y,scale_z,tags):
     objName = nameModel(name)
     Model(objName,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
-    getObject(objName).set_position(x,y,z)
+    getObject(objName).set_local_position(x,y,z)
     getObject(objName).set_scale(scale_x,scale_y,scale_z)
 
     return getObject(objName)
@@ -492,7 +483,7 @@ def spawnPlaneWithTexture(name, x,y,z, scale_x,scale_y,scale_z, tags, texture_pa
     objName = nameModel(name)
     Model(objName,'pg3d_assets/plane.obj', texture_path,tags, Color.white)
 
-    getObject(objName).set_position(x,y,z)
+    getObject(objName).set_local_position(x,y,z)
     getObject(objName).set_scale(scale_x,scale_y,scale_z)
 
     return getObject(objName)
@@ -502,7 +493,7 @@ def spawnSphere(name,x,y,z,tags):
     objName = nameModel(name)
     Model(objName,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
-    getObject(name).set_position(x,y,z)
+    getObject(name).set_local_position(x,y,z)
 
     return getObject(objName)
 
@@ -510,7 +501,7 @@ def spawnScaledSphere(name,x,y,z, scale_x,scale_y,scale_z,tags):
     objName = nameModel(name)
     Model(objName,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
-    getObject(objName).set_position(x,y,z)
+    getObject(objName).set_local_position(x,y,z)
     getObject(objName).set_scale(scale_x,scale_y,scale_z)
 
     return getObject(objName)
@@ -519,7 +510,7 @@ def spawnSphereWithTexture(name, x,y,z, scale_x,scale_y,scale_z, tags, texture_p
     objName = nameModel(name)
     Model(objName,'pg3d_assets/sphere.obj', texture_path,tags, Color.white)
 
-    getObject(objName).set_position(x,y,z)
+    getObject(objName).set_local_position(x,y,z)
     getObject(objName).set_scale(scale_x,scale_y,scale_z)
 
     return getObject(objName)
@@ -534,7 +525,12 @@ def getObjectIndex(name):
 
 def destroyObject(objectName):
     global cameraParent
-    global cameraLocalOffset
+
+    # I REALLY want to avoid goofy heirarchy logic here, so any children of the object will have their parent set as none
+    # regardless if this object was itself a child or not
+    obj = getObject(objectName)
+    for i in range(len(obj.children)):
+        obj.children[i].setParent(None)
 
     # not quite as simple as removing it from the registry, even though that's step 1
     objIndex = getObjectIndex(objectName)
@@ -550,7 +546,6 @@ def destroyObject(objectName):
     # also, the camera parent might have a reference to it as well
     if (cameraParent.name == objectName):
         cameraParent = None
-        cameraLocalOffset = np.asarray([0.0,0.0,0.0])
 
 def spawnObjectWithTexture(objPath, texturePath, name, x, y, z, tags, color):
     if (getFirstIndex(name, '(') < len(name)): # object names may NOT have parentheses!
@@ -648,20 +643,10 @@ def draw_circle(frameArray, xPos, yPos, radius, color):
 
     return frameArray
 
-# ********  drawing functions! (the annoying stuff)       ********
-
-@njit()
-def rotate_point_3d(vector, axis, angle):
-    # rotate around x axis
-    i = np.asarray([0.0,0.0,0.0,0.0,0.0,0.0])
-    i[3] = vector[3] * (     (axis[0] * axis[0]) * (1 - np.cos(angle)) + np.cos(angle)                  ) + vector[4] * (        (axis[1] * axis[0]) * (1 - np.cos(angle)) - (axis[2] * np.sin(angle))         ) + vector[5] * (        (axis[0] * axis[2]) * (1 - np.cos(angle)) + (axis[1] * np.sin(angle))     )
-    i[4] = vector[3] * (     (axis[0] * axis[1]) * (1 - np.cos(angle)) + (axis[2] * np.sin(angle))     ) + vector[4] * (        (axis[1] * axis[1]) * (1 - np.cos(angle)) + np.cos(angle)                      ) + vector[5] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) - (axis[0] * np.sin(angle))     )
-    i[5] = vector[3] * (     (axis[0] * axis[2]) * (1 - np.cos(angle)) - (axis[1] * np.sin(angle))     ) + vector[4] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) + (axis[0] * np.sin(angle))         ) + vector[5] * (        (axis[2] * axis[2]) * (1 - np.cos(angle)) + np.cos(angle)                  )
-    
-    return i   
+# ********  drawing functions! (the annoying stuff)       ********  
 
 # this function will move the points so that they are centered around the camera
-def transform_points(mesh, points, camera):
+def transform_points(mesh, points, cameraTransform):
     # first, go through the points to figure out where the point is in world space
     # (using the mesh's transforms)
     for i in points:
@@ -674,29 +659,29 @@ def transform_points(mesh, points, camera):
     # the rest of this function turns the world=relative points into camera-relative points
 
     # translate to have camera as origin
-    points[:,3] -= camera[0]
-    points[:,4] -= camera[1]
-    points[:,5] -= camera[2]
+    points[:,3] -= cameraTransform.position[0]
+    points[:,4] -= cameraTransform.position[1]
+    points[:,5] -= cameraTransform.position[2]
 
-    camZ = m.camera_forward(camera)
+    camZ = cameraTransform.forward
     forwardVectorAxis = m.normalize_3d(m.cross_3d(camZ,np.asarray([0.0,0.0,1.0])))
     forwardVectorAngle = m.angle_3d(np.asarray([0.0,0.0,1.0]),camZ)
 
     if (forwardVectorAngle > 0):
         for i in points:
-            j = rotate_point_3d(i, forwardVectorAxis, forwardVectorAngle)
+            j = m.rotate_point_3d(i, forwardVectorAxis, forwardVectorAngle)
             i[3] = j[3]
             i[4] = j[4]
             i[5] = j[5]
     else:
         forwardVectorAxis = camZ
 
-    upVectorAxis = m.normalize_3d(m.cross_3d(m.rotate_vector_3d(m.camera_up(camera),forwardVectorAxis,forwardVectorAngle),np.asarray([0.0,1.0,0.0])))
-    upVectorAngle = m.angle_3d(np.asarray([0.0,1.0,0.0]), m.rotate_vector_3d(m.camera_up(camera),forwardVectorAxis,forwardVectorAngle))
+    upVectorAxis = m.normalize_3d(m.cross_3d(m.rotate_vector_3d(cameraTransform.up,forwardVectorAxis,forwardVectorAngle),np.asarray([0.0,1.0,0.0])))
+    upVectorAngle = m.angle_3d(np.asarray([0.0,1.0,0.0]), m.rotate_vector_3d(cameraTransform.up,forwardVectorAxis,forwardVectorAngle))
 
     if (upVectorAngle > 0):
         for i in points:
-            j = rotate_point_3d(i, upVectorAxis, upVectorAngle)
+            j = m.rotate_point_3d(i, upVectorAxis, upVectorAngle)
             i[3] = j[3]
             i[4] = j[4]
             i[5] = j[5]
@@ -747,22 +732,22 @@ def draw_sphere_collider(isTrigger, worldPosition, radius):
   
 # rotate the camera by an axis and angle
 # re-defines the forward and up vectors, basically
-def rotate_camera(camera,axis,angle):
-    up = m.camera_up(camera)
-    forward = m.camera_forward(camera)
+def rotate_camera(axis,angle):
+    up = cameraLocalTransform.up
+    forward = cameraLocalTransform.forward
 
     # new local vectors
     upNew = m.rotate_vector_3d(up,axis,angle)
     forwardNew = m.rotate_vector_3d(forward,axis,angle)
 
     # assinging the camera vectors
-    camera[3] = forwardNew[0]
-    camera[4] = forwardNew[1]
-    camera[5] = forwardNew[2]
+    cameraLocalTransform.forward[0] = forwardNew[0]
+    cameraLocalTransform.forward[1] = forwardNew[1]
+    cameraLocalTransform.forward[2] = forwardNew[2]
 
-    camera[6] = upNew[0]
-    camera[7] = upNew[1]
-    camera[8] = upNew[2]
+    cameraLocalTransform.up[0] = upNew[0]
+    cameraLocalTransform.up[1] = upNew[1]
+    cameraLocalTransform.up[2] = upNew[2]
 
 # ********  string helpers:       ********
 @njit()
@@ -891,6 +876,7 @@ class Color:
 
     orange = np.asarray([1,0.592156862745098,0.1882352941176471]).astype('float32')
 
+# helpers, so you don't have to write stuff like np.asarray([])
 class Vector3:
     one = np.asarray([1.0,1.0,1.0])
     zero = np.asarray([0.0,0.0,0.0])
@@ -982,3 +968,14 @@ class Level:
     def addObject(self, objName):
         if (not m.array_has_item(self.objectNames, objName)):
             self.objectNames.append(objName)
+
+# more helpers
+class Rotation:
+    degToRadConversion = np.pi / 180
+    radToDegConversion = 180 / np.pi
+
+    def toRadians(deg):
+        return deg * np.pi / 180
+    
+    def toDegrees(rad):
+        return rad * 180 / np.pi

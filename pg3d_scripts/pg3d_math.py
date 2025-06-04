@@ -98,19 +98,6 @@ def subtract_3d(a, b):
 def length_3d(a):
     return np.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2])
 
-# local vectors of the camera (forward, up, right)
-# the forward and up vectors are defined in the camera, 
-# the right vector is calculated as a cross product between the two
-@njit()
-def camera_forward(camera):
-    return np.asarray([camera[3],camera[4],camera[5]])
-@njit()
-def camera_up(camera):
-    return np.asarray([camera[6],camera[7],camera[8]])
-def camera_right(camera):
-    crossProduct = normalize_3d(cross_3d(camera_forward(camera), camera_up(camera)))
-    return np.asarray([-crossProduct[0],-crossProduct[1],-crossProduct[2]])
-
 # calculate the angle in RADIANS between two vectors
 def angle_3d(a, b):
     dp = dot_3d(a,b)
@@ -142,5 +129,18 @@ def rotate_vector_3d(vector, axis, angle):
     i[0] = vector[0] * (     (axis[0] * axis[0]) * (1 - np.cos(angle)) + np.cos(angle)                  ) + vector[1] * (        (axis[1] * axis[0]) * (1 - np.cos(angle)) - (axis[2] * np.sin(angle))         ) + vector[2] * (        (axis[0] * axis[2]) * (1 - np.cos(angle)) + (axis[1] * np.sin(angle))     )
     i[1] = vector[0] * (     (axis[0] * axis[1]) * (1 - np.cos(angle)) + (axis[2] * np.sin(angle))     ) + vector[1] * (        (axis[1] * axis[1]) * (1 - np.cos(angle)) + np.cos(angle)                      ) + vector[2] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) - (axis[0] * np.sin(angle))     )
     i[2] = vector[0] * (     (axis[0] * axis[2]) * (1 - np.cos(angle)) - (axis[1] * np.sin(angle))     ) + vector[1] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) + (axis[0] * np.sin(angle))         ) + vector[2] * (        (axis[2] * axis[2]) * (1 - np.cos(angle)) + np.cos(angle)                  )
+    
+    return i 
+
+# the difference between this and the above function?
+# "points" are different than "vectors", because points have more indices for projection (6, or 9, it's dumb)
+
+@njit()
+def rotate_point_3d(vector, axis, angle):
+    # rotate around x axis
+    i = np.asarray([0.0,0.0,0.0,0.0,0.0,0.0])
+    i[3] = vector[3] * (     (axis[0] * axis[0]) * (1 - np.cos(angle)) + np.cos(angle)                  ) + vector[4] * (        (axis[1] * axis[0]) * (1 - np.cos(angle)) - (axis[2] * np.sin(angle))         ) + vector[5] * (        (axis[0] * axis[2]) * (1 - np.cos(angle)) + (axis[1] * np.sin(angle))     )
+    i[4] = vector[3] * (     (axis[0] * axis[1]) * (1 - np.cos(angle)) + (axis[2] * np.sin(angle))     ) + vector[4] * (        (axis[1] * axis[1]) * (1 - np.cos(angle)) + np.cos(angle)                      ) + vector[5] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) - (axis[0] * np.sin(angle))     )
+    i[5] = vector[3] * (     (axis[0] * axis[2]) * (1 - np.cos(angle)) - (axis[1] * np.sin(angle))     ) + vector[4] * (        (axis[1] * axis[2]) * (1 - np.cos(angle)) + (axis[0] * np.sin(angle))         ) + vector[5] * (        (axis[2] * axis[2]) * (1 - np.cos(angle)) + np.cos(angle)                  )
     
     return i 
