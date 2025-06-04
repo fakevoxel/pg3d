@@ -25,16 +25,16 @@ class Model:
     # it's used to sort the heirarchy so that transforms can be applied properly
     childLevel = 0
 
-    # we don't need a reference to all children, but we DO for the parent
     parent = None
+    # I thought at first that we don't need a reference to children, but it does make syncing everything easier
+    # (this is a list of objects)
+    children = []
 
-    # essentially a unity transform component:
+    # the world and local transforms of an object
 
-    # scale, then rotation, then position is applied
-    position = np.asarray([0.0,0.0,0.0])
-    forward = np.asarray([0.0,0.0,1.0])
-    up = np.asarray([0.0,1.0,0.0])
-    scale = np.asarray([1.0,1.0,1.0])
+    # initialized as none here, they're actually set in the init function
+    worldTransform = None
+    localTransform = None
 
     # physics stuff
     linearVelocity = np.asarray([0.0,0.0,0.0])
@@ -51,6 +51,9 @@ class Model:
     shouldBeDrawn = True
 
     shouldBePhysics = True
+    
+    # either opaque or alphaclip, changes how the renderer deals with transparency
+    textureType = "opaque"
 
     def __init__(self, name, path_obj, path_texture, tags, color):
         self.name = name
@@ -78,6 +81,44 @@ class Model:
         # for textured models, the color is multiplied by the texture
         # for colored models, the color applies to all geometry
         self.color = color
+
+    # switching between texture types ***********
+    def setTextureType(self, newType):
+        self.textureType = newType
+    def setAsOpaque(self):
+        self.textureType = "opaque"
+    def setAsTransparent(self):
+        self.textureType = "alphaclip"
+    # ***********
+
+    # set the transform based on the parent
+    def syncTransformWithParent(self):
+        # DO NOT CHANGE THE LOCAL TRANSFORM
+
+        if (self.parent == None): 
+            # can't really do much without a parent lol
+            # but we do need to make sure the world and local transforms are the same
+            self.worldTransform.copy(self.localTransform)
+
+            return
+        
+        # okay, so we do actually have a parent cuz the func didnt return
+
+        # first, copy the local to the world
+        self.worldTransform.copy(self.localTransform)
+        self.worldTransform.add_self_to_other(self.parent.worldTransform) # as mentioned basically everywhere, the parent's world transform HAS TO BE DONE FIRST
+
+        self.worldTransform
+
+    # loop through all children and refresh their transforms
+    def syncChildrenTransforms(self):
+        for i in range(len(self.children)):
+            i.syncTransformWithParent()
+            i.syncChildrenTransforms()
+
+    # changes the texture on the model
+    def setTexture(self, texture_path):
+        self.texture = pg.surfarray.array3d(pg.image.load(texture_path))
 
     def show(self):
         self.shouldBeDrawn = True
@@ -353,13 +394,14 @@ class Model:
 
         return point
     
+# essentially a unity transform component:
 # since objects now have parents and children, every object will have a WORLD set of transforms and a set of LOCAL transforms
 class ModelTransform:
     # midpoint isn't on here because the world-space midpoint is really the only one that'll be used
 
     # velocity isn't on here because what even is local velocity anyways?
 
-    # scale, then rotation, then position is applied
+    # scale, then rotation, then position is applied, in that order, when transforming
     position = np.asarray([0.0,0.0,0.0])
     forward = np.asarray([0.0,0.0,1.0])
     up = np.asarray([0.0,1.0,0.0])
@@ -372,6 +414,24 @@ class ModelTransform:
         self.up = u
 
         self.scale = scl
+
+    # literally just ctrl+c, ctrl+v the data from another transform
+    def copy(self, otherTransform):
+        self.position[0] = otherTransform.position[0]
+        self.position[1] = otherTransform.position[1]
+        self.position[2] = otherTransform.position[2]
+
+        self.scale[0] = otherTransform.scale[0]
+        self.scale[1] = otherTransform.scale[1]
+        self.scale[2] = otherTransform.scale[2]
+
+        self.forward[0] = otherTransform.forward[0]
+        self.forward[1] = otherTransform.forward[1]
+        self.forward[2] = otherTransform.forward[2]
+
+        self.up[0] = otherTransform.up[0]
+        self.up[1] = otherTransform.up[1]
+        self.up[2] = otherTransform.up[2]
     
     # this function is a bit weird
     # it adds THE CURRENT TRANSFORM DATA to ANOTHER SET OF TRANSFORM DATA
@@ -401,22 +461,34 @@ class ModelTransform:
         # I have to figure out how rotated the forward and up vectors are from the other's, 
         # then store that as a rotational offset of sorts, then apply that rotation to the other's vectors to get the final rotations
 
-        # so the first question is, what two axis and angles get us from the other pose to this one?
+        # so the first question is, what two axis and angles get us from the world to this one?
 
         # rotating from the OTHER forward vector to THIS one
-        forwardVectorAxis = m.normalize_3d(m.cross_3d(otherTransform.forward,self.forward))
-        forwardVectorAngle = m.angle_3d(self.forward,otherTransform.forward)
+        forwardVectorAxis = m.normalize_3d(m.cross_3d(np.asarray([0.0,0.0,1.0]),self.forward))
+        forwardVectorAngle = m.angle_3d(self.forward,np.asarray([0.0,0.0,1.0]))
 
         if (forwardVectorAngle == 0):
-            forwardVectorAxis = otherTransform.forward
+            forwardVectorAxis = np.asarray([0.0,0.0,1.0])
         else:
             # rotate BOTH THE FORWARD AND UP VECTORS using this rotation
+            newForward = m.rotate_vector_3d(otherTransform.forward, forwardVectorAxis, forwardVectorAngle)
+
+            self.forward[0] = newForward[0]
+            self.forward[1] = newForward[1]
+            self.forward[2] = newForward[2]
 
         # FROM THERE, rotating from the OTHER UP VECTOR to THIS ONE
-        upVectorAxis = m.normalize_3d(m.cross_3d(   m.rotate_vector_3d(otherTransform.up,forwardVectorAxis,forwardVectorAngle)        ,self.up))
-        upVectorAngle = m.angle_3d(self.up,   m.rotate_vector_3d(otherTransform.up,forwardVectorAxis,forwardVectorAngle)        )
+        # the rotation axis will just end up being the new forward vector (if all goes well)
+        # but we CANNOT use the new forward vector, the cross product sometimes being negative IS VITAL
+        upVectorAxis = m.normalize_3d(m.cross_3d(   m.rotate_vector_3d(np.asarray([0.0,1.0,0.0]),forwardVectorAxis,forwardVectorAngle)        ,self.up))
+        upVectorAngle = m.angle_3d(self.up,   m.rotate_vector_3d(np.asarray([0.0,1.0,0.0]),forwardVectorAxis,forwardVectorAngle)        )
 
         # rotate ONLY THE UP VECTOR, since rotating the forward vector won't do anything
 
-        # TODO: finish this function
-        # (oh god vectors)
+        newUp = m.rotate_vector_3d(otherTransform.up, upVectorAxis, upVectorAngle)
+
+        self.up[0] = newUp[0]
+        self.up[1] = newUp[1]
+        self.up[2] = newUp[2]
+
+        # that SHOULD be everything (lol)

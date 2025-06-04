@@ -14,6 +14,21 @@ def average_point_3d(list):
 
     return toReturn
 
+def array_has_item(array, item):
+    for i in array:
+        if (i == item):
+            return True
+        
+    return False
+
+# the box's bounds represent SIZE, NOT EXTENTS
+def clamp_box_3d(point, boxCenter, boxSizes):
+    newX = min(max(point[0], boxCenter[0] - boxSizes[0]/2), boxCenter[0] + boxSizes[0]/2)
+    newY = min(max(point[1], boxCenter[1] - boxSizes[1]/2), boxCenter[1] + boxSizes[1]/2)
+    newZ = min(max(point[2], boxCenter[2] - boxSizes[2]/2), boxCenter[2] + boxSizes[2]/2)
+
+    return np.asarray([newX,newY,newZ])
+
 # ********  2D vector helpers:  ********  
 
 @njit()

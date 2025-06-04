@@ -82,8 +82,13 @@ def triangle_state(points, triangle):
         return 2 # both
 
 # z-buffering is still used EVEN during wireframe
-def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, texture_uv, texture_map, texture, color):
+def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, texture_uv, texture_map, texture, color, textureType):
     global renderConfig
+
+    textureTypeIndex = 0
+
+    if (textureType == "alphaclip"):
+        textureTypeIndex = 1
 
     # for the first part of things, we're gonna use the set of points that's transformed to be camera-relative
     # in other words, indices 3,4 and 5
@@ -129,7 +134,7 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
             minY = np.min([projpoints[0][7],projpoints[1][7],projpoints[2][7]])
             maxY = np.max([projpoints[0][7],projpoints[1][7],projpoints[2][7]])
 
-            draw_triangle(renderConfig.screenWidth, renderConfig.screenHeight, frame, z_buffer, texture, projpoints, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2,renderConfig.renderingMode, np.asarray([1,1,1]), renderConfig.backfaceCulling)
+            draw_triangle(renderConfig.screenWidth, renderConfig.screenHeight, frame, z_buffer, texture, projpoints, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2,renderConfig.renderingMode, np.asarray([1,1,1]), renderConfig.backfaceCulling, textureTypeIndex)
         elif(triangleState == 2):
             # here, the triangle is both behind and in front, and we need to clip it
 
@@ -213,20 +218,30 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
                     p1 = np.asarray([goodVertices[0][3],goodVertices[0][4],goodVertices[0][5]])
                     p2 = np.asarray([problemVertices[1][3],problemVertices[1][4],problemVertices[1][5]])
                     p3 = np.asarray([problemVertices[0][3],problemVertices[0][4],problemVertices[0][5]])
+
+                    parameter = (0.01 - p2[2]) / (p1[2] - p2[2])
+                    intersect1 = m.add_3d(p2, np.asarray([(p1[0]-p2[0]) * parameter,(p1[1]-p2[1]) * parameter,(p1[2]-p2[2]) * parameter]))
+                    goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
+                    goodUV.append(np.asarray([problemUV[1][0] + (goodUV[0][0] - problemUV[1][0]) * parameter, problemUV[1][1] + (goodUV[0][1] - problemUV[1][1]) * parameter]))
+
+                    parameter = (0.01 - p3[2]) / (p1[2] - p3[2])
+                    intersect1 = m.add_3d(p3, np.asarray([(p1[0]-p3[0]) * parameter,(p1[1]-p3[1]) * parameter,(p1[2]-p3[2]) * parameter]))
+                    goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
+                    goodUV.append(np.asarray([problemUV[0][0] + (goodUV[0][0] - problemUV[0][0]) * parameter, problemUV[0][1] + (goodUV[0][1] - problemUV[0][1]) * parameter]))
                 else:
                     p1 = np.asarray([goodVertices[0][3],goodVertices[0][4],goodVertices[0][5]])
                     p2 = np.asarray([problemVertices[0][3],problemVertices[0][4],problemVertices[0][5]])
                     p3 = np.asarray([problemVertices[1][3],problemVertices[1][4],problemVertices[1][5]])
 
-                parameter = (0.01 - p2[2]) / (p1[2] - p2[2])
-                intersect1 = m.add_3d(p2, np.asarray([(p1[0]-p2[0]) * parameter,(p1[1]-p2[1]) * parameter,(p1[2]-p2[2]) * parameter]))
-                goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
-                goodUV.append(np.asarray([problemUV[1][0] + (goodUV[0][0] - problemUV[1][0]) * parameter, problemUV[1][1] + (goodUV[0][1] - problemUV[1][1]) * parameter]))
+                    parameter = (0.01 - p2[2]) / (p1[2] - p2[2])
+                    intersect1 = m.add_3d(p2, np.asarray([(p1[0]-p2[0]) * parameter,(p1[1]-p2[1]) * parameter,(p1[2]-p2[2]) * parameter]))
+                    goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
+                    goodUV.append(np.asarray([problemUV[0][0] + (goodUV[0][0] - problemUV[0][0]) * parameter, problemUV[0][1] + (goodUV[0][1] - problemUV[0][1]) * parameter]))
 
-                parameter = (0.01 - p3[2]) / (p1[2] - p3[2])
-                intersect1 = m.add_3d(p3, np.asarray([(p1[0]-p3[0]) * parameter,(p1[1]-p3[1]) * parameter,(p1[2]-p3[2]) * parameter]))
-                goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
-                goodUV.append(np.asarray([problemUV[0][0] + (goodUV[0][0] - problemUV[0][0]) * parameter, problemUV[0][1] + (goodUV[0][1] - problemUV[0][1]) * parameter]))
+                    parameter = (0.01 - p3[2]) / (p1[2] - p3[2])
+                    intersect1 = m.add_3d(p3, np.asarray([(p1[0]-p3[0]) * parameter,(p1[1]-p3[1]) * parameter,(p1[2]-p3[2]) * parameter]))
+                    goodVertices.append(np.asarray([0.0,0.0,0.0,intersect1[0],intersect1[1],intersect1[2],0.0,0.0,0.0]))
+                    goodUV.append(np.asarray([problemUV[1][0] + (goodUV[0][0] - problemUV[1][0]) * parameter, problemUV[1][1] + (goodUV[0][1] - problemUV[1][1]) * parameter]))
 
                 # the good vertices array will have items with ONLY SIX VALUES, representing the cam-relative points and then the projected points
                 # however, right now the projected part is all zeros
@@ -257,7 +272,7 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
 
                 # now that we have our three triangle points (not behind the camera anymore), we can draw them
 
-                draw_triangle(renderConfig.screenWidth, renderConfig.screenHeight, frame, z_buffer, texture, goodVertices, goodUV, minX, maxX, minY, maxY, text_size, z0, z1, z2,renderConfig.renderingMode, np.asarray([1,1,1]), renderConfig.backfaceCulling)
+                draw_triangle(renderConfig.screenWidth, renderConfig.screenHeight, frame, z_buffer, texture, goodVertices, goodUV, minX, maxX, minY, maxY, text_size, z0, z1, z2,renderConfig.renderingMode, np.asarray([1,1,1]), renderConfig.backfaceCulling, textureTypeIndex)
             elif (len(problemVertices) == 1):
                 # here only one vertex is an issue
                 # the procedure is similar, but we end up with two triangles
@@ -330,15 +345,15 @@ def draw_model(mesh, frame, points, triangles, camera, light_dir, z_buffer, text
                     uv1 = np.asarray([goodUV[0] * z01,goodUV[1] * z11,goodUV[2] * z21])
                     uv2 = np.asarray([goodUV[1] * z02,goodUV[3] * z12,goodUV[2] * z22])
 
-                draw_triangle(renderConfig.screenWidth, renderConfig.screenHeight, frame, z_buffer, texture, good1, uv1, minX1, maxX1, minY1, maxY1, text_size, z01, z11, z21,renderConfig.renderingMode, np.asarray([1,1,1]), renderConfig.backfaceCulling)
-                draw_triangle(renderConfig.screenWidth, renderConfig.screenHeight, frame, z_buffer, texture, good2, uv2, minX2, maxX2, minY2, maxY2, text_size, z02, z12, z22,renderConfig.renderingMode, np.asarray([1,1,1]), renderConfig.backfaceCulling)
+                draw_triangle(renderConfig.screenWidth, renderConfig.screenHeight, frame, z_buffer, texture, good1, uv1, minX1, maxX1, minY1, maxY1, text_size, z01, z11, z21,renderConfig.renderingMode, np.asarray([1,1,1]), renderConfig.backfaceCulling, textureTypeIndex)
+                draw_triangle(renderConfig.screenWidth, renderConfig.screenHeight, frame, z_buffer, texture, good2, uv2, minX2, maxX2, minY2, maxY2, text_size, z02, z12, z22,renderConfig.renderingMode, np.asarray([1,1,1]), renderConfig.backfaceCulling, textureTypeIndex)
 
 
         #  we do nothing if the triangle is all behind (state == 1), we just skip those
 
 # z-buffering NOT used for wireframe, it is for the others though
 @njit()
-def draw_triangle(sW, sH, frame, z_buffer, texture, proj_points, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2, renderMode, color, cullBack):
+def draw_triangle(sW, sH, frame, z_buffer, texture, proj_points, uv_points, minX, maxX, minY, maxY, text_size, z0, z1, z2, renderMode, color, cullBack, textureType):
     global wireframeColor
 
     renderColor = color
@@ -407,13 +422,14 @@ def draw_triangle(sW, sH, frame, z_buffer, texture, proj_points, uv_points, minX
                     elif (renderMode == "texture"):
                         pixelColor = texture[int(u*text_size[0] + 1)][int(v*text_size[1])]
                         # ALL objects in the scene are rendered using alpha-clip, so if there's no color it's transparent
-                        # if (pixelColor[0] > 0 and pixelColor[1] > 0 and pixelColor[2] > 0):
-                        #     frame[x, y] = pixelColor * color
+                        if (textureType == 1):
+                            if (pixelColor[0] > 0 and pixelColor[1] > 0 and pixelColor[2] > 0):
+                                frame[x, y] = pixelColor * color
 
-                        #     # z buffer stores values of 1 / z
-                        #     z_buffer[x, y] = z
-
-                        frame[x, y] = pixelColor * color
+                                # z buffer stores values of 1 / z
+                                z_buffer[x, y] = z
+                        else:
+                            frame[x, y] = pixelColor * color
 
                         # z buffer stores values of 1 / z
                         z_buffer[x, y] = z

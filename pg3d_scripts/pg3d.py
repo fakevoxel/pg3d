@@ -78,9 +78,17 @@ def init(w, h, wActual, hActual, ver):
     pg.mouse.set_visible(0)
     pg.mouse.set_pos(pg3d_rendering.renderConfig.screenWidth/2,pg3d_rendering.renderConfig.screenHeight/2)
 
+# this exists just so I don't have to call two functions every time
+
+# it's called WHENEVER THE HEIRARCHY CHANGES, 
+# and is NOT called during position/rotation updates
+def refreshHeirarchy():
+    refreshObjectOrder()
+    refreshObjectTransforms()
+
 # refreshing the object heirarchy
 # DO NOT CALL THIS EVERY FRAME, IT'LL BE SLOW
-def refreshObjectHeirarchy():
+def refreshObjectOrder():
     # this list will become the object registry, sorted by child level
     sortedObjects = []
 
@@ -112,15 +120,16 @@ def refreshObjectTransforms():
         # temp variable so I don't have to keep typing Model._registry[i]
         obj = Model._registry[i]
 
-        # TODO: the rest of this function
+        # the idea here is to leave the local forward, up, etc. alone
+        # the WORLD transform is the one that's going to change
+        
+        # when the user messes with the heirarchy, the local vector won't change there either, it'll just mean something different
 
 def disableBackfaceCulling():
-    global backfaceCulling
-    backfaceCulling = False
+    pg3d_rendering.renderConfig.backfaceCulling = False
 
 def enableBackfaceCulling():
-    global backfaceCulling
-    backfaceCulling = True
+    pg3d_rendering.renderConfig.backfaceCulling = True
 
 def enablePhysics():
     global physicsEnabled
@@ -143,12 +152,12 @@ def unParentCamera():
     cameraParent = None
 
 def setRenderingMode(newMode):
-    if (array_has_item(pg3d_rendering.renderingModes, newMode)):
+    if (m.array_has_item(pg3d_rendering.renderingModes, newMode)):
         pg3d_rendering.renderConfig.renderingMode = newMode
         pg3d_rendering.renderingMode = newMode
 
 def setBackgroundMode(newMode):
-    if (array_has_item(pg3d_rendering.backGroundModes, newMode)):
+    if (m.array_has_item(pg3d_rendering.backGroundModes, newMode)):
         pg3d_rendering.renderConfig.backgroundMode = newMode
 
 def update():
@@ -278,7 +287,7 @@ def getFrame():
             transform_points(model, model.points, camera)
             # this function will project the triangles onto the screen, and draw them
             pg3d_rendering.draw_model(model, frame, model.points, model.triangles, camera, light_dir, z_buffer,
-                        model.texture_uv, model.texture_map, model.texture, model.color)
+                        model.texture_uv, model.texture_map, model.texture, model.color, model.textureType)
     
     return frame
 
@@ -376,7 +385,7 @@ def updateCamera_freecam(moveSpeed):
     rotate_camera(camera,m.camera_up(camera),xChange * -0.001)
     rotate_camera(camera,m.camera_right(camera),yChange * 0.001)
 
-def updateCamera_firstPerson(moveSpeed):
+def updateCamera_firstPerson(moveSpeed, mouseSensitivity, enableMovement):
     global screenWidth
     global screenHeight
 
@@ -391,19 +400,20 @@ def updateCamera_firstPerson(moveSpeed):
     
     # movement 
 
-    rawF = m.camera_forward(camera)
-    f = m.subtract_3d(rawF, project_3d(rawF, np.asarray([0.0,1.0,0.0])))
-    r = m.camera_right(camera)
+    if (enableMovement):
+        rawF = m.camera_forward(camera)
+        f = m.subtract_3d(rawF, project_3d(rawF, np.asarray([0.0,1.0,0.0])))
+        r = m.camera_right(camera)
 
-    pressed_keys = pg.key.get_pressed()
-    if pressed_keys[ord('w')]:
-        cameraParent.add_position(f[0] * timeSinceLastFrame * moveSpeed,f[1] * timeSinceLastFrame * moveSpeed,f[2] * timeSinceLastFrame * moveSpeed)
-    elif pressed_keys[ord('s')]:
-        cameraParent.add_position(-f[0] * timeSinceLastFrame * moveSpeed,-f[1] * timeSinceLastFrame * moveSpeed,-f[2] * timeSinceLastFrame * moveSpeed)
-    if pressed_keys[ord('a')]:
-        cameraParent.add_position(r[0] * timeSinceLastFrame * moveSpeed,r[1] * timeSinceLastFrame * moveSpeed,r[2] * timeSinceLastFrame * moveSpeed)
-    elif pressed_keys[ord('d')]:
-        cameraParent.add_position(-r[0] * timeSinceLastFrame * moveSpeed,-r[1] * timeSinceLastFrame * moveSpeed,-r[2] * timeSinceLastFrame * moveSpeed)
+        pressed_keys = pg.key.get_pressed()
+        if pressed_keys[ord('w')]:
+            cameraParent.add_position(f[0] * timeSinceLastFrame * moveSpeed,f[1] * timeSinceLastFrame * moveSpeed,f[2] * timeSinceLastFrame * moveSpeed)
+        elif pressed_keys[ord('s')]:
+            cameraParent.add_position(-f[0] * timeSinceLastFrame * moveSpeed,-f[1] * timeSinceLastFrame * moveSpeed,-f[2] * timeSinceLastFrame * moveSpeed)
+        if pressed_keys[ord('a')]:
+            cameraParent.add_position(r[0] * timeSinceLastFrame * moveSpeed,r[1] * timeSinceLastFrame * moveSpeed,r[2] * timeSinceLastFrame * moveSpeed)
+        elif pressed_keys[ord('d')]:
+            cameraParent.add_position(-r[0] * timeSinceLastFrame * moveSpeed,-r[1] * timeSinceLastFrame * moveSpeed,-r[2] * timeSinceLastFrame * moveSpeed)
 
     # rotation
     xChange = mouseChange[0]
@@ -411,8 +421,8 @@ def updateCamera_firstPerson(moveSpeed):
 
     # you HAVEE to call camera_right() again to deal with the result of the first rotation
     # otherwise, weird things happen that aren't fun
-    rotate_camera(camera,np.asarray([0.0,1.0,0.0]),xChange * -0.001)
-    rotate_camera(camera,m.camera_right(camera),yChange * 0.001)
+    rotate_camera(camera,np.asarray([0.0,1.0,0.0]),xChange * -0.001 * mouseSensitivity)
+    rotate_camera(camera,m.camera_right(camera),yChange * 0.001 * mouseSensitivity)
 
 def resetCameraRotation():
     camera[3] = 0.0
@@ -435,43 +445,84 @@ def setBackGroundColor(r,g,b):
 # ********   OBJECT functions:     ********
 
 # ********   cube:     ********
-def spawnCube(x,y,z,tags):
-    name = nameModel("cube")
-    Model(name,'pg3d_assets/cube_no-net.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
+def spawnCube(name, x,y,z, tags):
+    objName = nameModel(name)
+    Model(objName,'pg3d_assets/cube_no-net.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
-    getObject(name).set_position(x,y,z)
-def spawnScaledCube(x,y,z,sx,sy,sz,tags):
-    name = nameModel("cube")
-    Model(name,'pg3d_assets/cube.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
+    getObject(objName).set_position(x,y,z)
 
-    getObject(name).set_position(x,y,z)
-    getObject(name).set_scale(sx,sy,sz)
+    return getObject(objName)
+
+def spawnScaledCube(name, x,y,z, scale_x,scale_y,scale_z, tags):
+    objName = nameModel(name)
+    Model(objName,'pg3d_assets/cube.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
+
+    getObject(objName).set_position(x,y,z)
+    getObject(objName).set_scale(scale_x,scale_y,scale_z)
+
+    return getObject(objName)
+
+def spawnCubeWithTexture(name, x,y,z, scale_x,scale_y,scale_z, tags, texture_path):
+    objName = nameModel(name)
+    Model(objName,'pg3d_assets/cube.obj', texture_path,tags, Color.white)
+
+    getObject(objName).set_position(x,y,z)
+    getObject(objName).set_scale(scale_x,scale_y,scale_z)
+
+    return getObject(objName)
 
 # ********   plane:     ********
-def spawnPlane(x,y,z,tags):
-    name = nameModel("plane")
-    Model(name,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
+def spawnPlane(name,x,y,z,tags):
+    objName = nameModel(name)
+    Model(objName,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
-    getObject(name).set_position(x,y,z)
-def spawnScaledPlane(x,y,z,sx,sy,sz,tags):
-    name = nameModel("plane")
-    Model(name,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
+    getObject(objName).set_position(x,y,z)
+    return getObject(objName)
 
-    getObject(name).set_position(x,y,z)
-    getObject(name).set_scale(sx,sy,sz)
+def spawnScaledPlane(name,x,y,z,scale_x,scale_y,scale_z,tags):
+    objName = nameModel(name)
+    Model(objName,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
+
+    getObject(objName).set_position(x,y,z)
+    getObject(objName).set_scale(scale_x,scale_y,scale_z)
+
+    return getObject(objName)
+
+def spawnPlaneWithTexture(name, x,y,z, scale_x,scale_y,scale_z, tags, texture_path):
+    objName = nameModel(name)
+    Model(objName,'pg3d_assets/plane.obj', texture_path,tags, Color.white)
+
+    getObject(objName).set_position(x,y,z)
+    getObject(objName).set_scale(scale_x,scale_y,scale_z)
+
+    return getObject(objName)
 
 # ********   sphere:     ********
-def spawnSphere(x,y,z,tags):
-    name = nameModel("sphere")
-    Model(name,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
+def spawnSphere(name,x,y,z,tags):
+    objName = nameModel(name)
+    Model(objName,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
     getObject(name).set_position(x,y,z)
-def spawnScaledSphere(x,y,z,sx,sy,sz,tags):
-    name = nameModel("sphere")
-    Model(name,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
 
-    getObject(name).set_position(x,y,z)
-    getObject(name).set_scale(sx,sy,sz)
+    return getObject(objName)
+
+def spawnScaledSphere(name,x,y,z, scale_x,scale_y,scale_z,tags):
+    objName = nameModel(name)
+    Model(objName,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
+
+    getObject(objName).set_position(x,y,z)
+    getObject(objName).set_scale(scale_x,scale_y,scale_z)
+
+    return getObject(objName)
+
+def spawnSphereWithTexture(name, x,y,z, scale_x,scale_y,scale_z, tags, texture_path):
+    objName = nameModel(name)
+    Model(objName,'pg3d_assets/sphere.obj', texture_path,tags, Color.white)
+
+    getObject(objName).set_position(x,y,z)
+    getObject(objName).set_scale(scale_x,scale_y,scale_z)
+
+    return getObject(objName)
 
 def getObjectIndex(name):
     counter = 0
@@ -789,13 +840,6 @@ def getLevel(levelName):
     for i in Level._registry:
         if (i.name == levelName):
             return i
-    
-def array_has_item(array, item):
-    for i in array:
-        if (i == item):
-            return True
-        
-    return False
 
 def index_in_array(array, item):
     counter = 0
@@ -805,14 +849,6 @@ def index_in_array(array, item):
         counter += 1
         
     return -1
-
-# the box's bounds represent SIZE, NOT EXTENTS
-def clamp_box_3d(point, boxCenter, boxSizes):
-    newX = min(max(point[0], boxCenter[0] - boxSizes[0]/2), boxCenter[0] + boxSizes[0]/2)
-    newY = min(max(point[1], boxCenter[1] - boxSizes[1]/2), boxCenter[1] + boxSizes[1]/2)
-    newZ = min(max(point[2], boxCenter[2] - boxSizes[2]/2), boxCenter[2] + boxSizes[2]/2)
-
-    return np.asarray([newX,newY,newZ])
 
 # I don't like typing out the np.asarray([]) function, so this one makes colors a bit less verbose
 def constructColor(r,g,b):
@@ -869,6 +905,16 @@ class Vector3:
     up = np.asarray([0.0,1.0,0.0])
     down = np.asarray([0.0,-1.0,0.0])
 
+    # alternative names:
+    x_positive = np.asarray([1.0,0.0,0.0])
+    x_negative = np.asarray([-1.0,0.0,0.0])
+
+    y_positive = np.asarray([0.0,1.0,0.0])
+    y_negative = np.asarray([0.0,-1.0,0.0])
+
+    z_positive = np.asarray([0.0,0.0,1.0])
+    z_negative = np.asarray([0.0,0.0,-1.0])
+
     def new(x,y,z):
         return np.asarray(x,y,z)
     
@@ -884,6 +930,13 @@ class Vector2:
 
     up = np.asarray([0.0,1.0])
     down = np.asarray([0.0,-1.0])
+
+    # alternative names:
+    x_positive = right = np.asarray([1.0,0.0])
+    x_negative = np.asarray([-1.0,0.0])
+
+    y_positive = np.asarray([0.0,1.0])
+    y_negative = np.asarray([0.0,-1.0])
 
     def new(x,y):
         return np.asarray(x,y) 
@@ -927,5 +980,5 @@ class Level:
         refreshRenderBooleans() # calling this function only when a change is made, for performance reasons
 
     def addObject(self, objName):
-        if (not array_has_item(self.objectNames, objName)):
+        if (not m.array_has_item(self.objectNames, objName)):
             self.objectNames.append(objName)
