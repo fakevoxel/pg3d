@@ -12,6 +12,8 @@ def main():
     # Always start the engine by calling pg3d.init(). Pass in the render resolution, screen resolution, and VERTICAL fov.
     engine.init(200,150,800,600, 70)
 
+    ping_sound = pg.mixer.Sound('ping.wav')
+
     engine.setBackgroundMode("skybox")
     # You can change the background color of the game with this function:
     engine.setBackGroundColor(0,100,200)
@@ -78,6 +80,7 @@ def main():
                 engine.setBackGroundColor(255,255,255)
                 # we picked up the coin, so remove it
                 engine.destroyObjectWithName("coin")
+                pg.mixer.Sound.play(ping_sound)
 
         # A lot of games use a first person camera controller, so PG3D has that as a built-in feature.
         # All you have to do is parent the camera to an object (the object represents the player) which we did above,

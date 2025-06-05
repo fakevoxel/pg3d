@@ -189,7 +189,7 @@ class Model:
     
     def getMidpointAsVector(self):
         mp = self.midpoint()
-        return np.asarray([mp[0],mp[1],mp[2]])
+        return np.asarray([mp[3],mp[4],mp[5]])
 
     # whether the tags array has a given tag
     def hasTag(self, tag):
@@ -488,14 +488,15 @@ class Model:
         self.syncChildren()
 
     def set_local_up(self, v):
-        appliedRotationAxis = m.cross_3d(self.localTransform.up, v)
+        appliedRotationAxis = m.normalize_3d(m.cross_3d(self.localTransform.up, v))
         appliedRotationAngle = m.angle_3d(self.localTransform.up, v)
 
-        self.localTransform.forward = m.rotate_vector_3d(self.localTransform.forward, appliedRotationAxis, appliedRotationAngle)
-        self.localTransform.up = m.rotate_vector_3d(self.localTransform.up, appliedRotationAxis, appliedRotationAngle)
+        if (appliedRotationAngle > 0.01):
+            self.localTransform.forward = m.rotate_vector_3d(self.localTransform.forward, appliedRotationAxis, appliedRotationAngle)
+            self.localTransform.up = m.rotate_vector_3d(self.localTransform.up, appliedRotationAxis, appliedRotationAngle)
 
-        self.syncTransformWithParent() # refreshing the world transform
-        self.syncChildren()
+            self.syncTransformWithParent() # refreshing the world transform
+            self.syncChildren()
 
     # set scale with three numbers
     def set_scale(self, a, b, c):
