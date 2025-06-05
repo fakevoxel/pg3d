@@ -370,6 +370,7 @@ def update():
                 # TODO: torque
 
             collidersInScene = getObjectsWithTag("box_collider")
+            sphereCollidersInScene = getObjectsWithTag("sphere_collider")
 
             # this comes out as a point (x,y,z) (x transformed, y transformed, z transformed)
             # it's in world space!
@@ -406,6 +407,36 @@ def update():
 
                     # not a great permanent solution, but make the velocity 0 to make sure the collision stays resolved
                     i.set_velocity(0,0,0)
+
+            # for sphere colliders
+            for j in sphereCollidersInScene:
+                # don't do anything if talking about the same object
+                if (j.name == i.name):
+                    continue
+                    
+                if (not j.shouldBePhysics): # colliddr isn't participating in interactions
+                    continue
+
+                # testing for an intersection is wayyy simpler, just a length check
+                # (the whole point of sphere colliders is that they're easier to compute btw)
+
+                mp = j.midpoint()
+                otherMidpoint = np.asarray([mp[3],mp[4],mp[5]])
+
+                distBetween = m.length_3d(worldSpaceMidpoint - otherMidpoint)
+
+                localRadius = i.data["collider_bounds"]
+                otherRadius = j.data["collider_bounds"]
+
+                rSum = otherRadius + localRadius
+
+                if (distBetween < rSum):
+                    # there is an intersection!
+                    pushVector = m.normalize_3d(worldSpaceMidpoint - otherMidpoint)
+
+                    differenceInRadius = rSum - distBetween
+
+                    i.add_local_position(pushVector[0] * differenceInRadius, pushVector[1] * differenceInRadius, pushVector[2] * differenceInRadius)
 
             i.add_local_position(i.linearVelocity[0] * timeSinceLastFrame,i.linearVelocity[1] * timeSinceLastFrame,i.linearVelocity[2] * timeSinceLastFrame)
                 
@@ -555,10 +586,10 @@ def updateCamera_firstPerson_controller(moveSpeed, mouseSensitivity, enableMovem
         f = m.normalize_3d(m.subtract_3d(rawF, project_3d(rawF, np.asarray([0.0,1.0,0.0]))))
         r = cameraWorldTransform.get_right()
 
-        joystickY = get_first_joystick_left_y(0.1)
-        joystickX = get_first_joystick_left_x(0.1)
-        cameraParent.add_local_position(-f[0] * joystickY * 0.4, -f[1] * joystickY * 0.4, -f[2] * joystickY * 0.4)
-        cameraParent.add_local_position(r[0] * -joystickX * 0.4, r[1] * -joystickX * 0.4, r[2] * -joystickX * 0.4)
+        joystickY = get_first_joystick_left_y(0.1) * moveSpeed
+        joystickX = get_first_joystick_left_x(0.1) * moveSpeed
+        cameraParent.add_local_position(-f[0] * joystickY, -f[1] * joystickY, -f[2] * joystickY)
+        cameraParent.add_local_position(r[0] * -joystickX, r[1] * -joystickX, r[2] * -joystickX)
 
         if (get_first_joystick_cross()):
             if (cameraParent.is_colliding()):
@@ -1079,17 +1110,27 @@ def project_2d(a,b):
     return np.asarray(b[0] * coefficient,b[1] * coefficient)
     
 class Color:
-    white = np.asarray([1,1,1]).astype('float32')
+    white_01 = np.asarray([1,1,1]).astype('float32')
 
-    red = np.asarray([1,0,0]).astype('float32')
-    green = np.asarray([0,1,0]).astype('float32')
-    blue = np.asarray([0,0,1]).astype('float32')
+    red_01 = np.asarray([1,0,0]).astype('float32')
+    green_01 = np.asarray([0,1,0]).astype('float32')
+    blue_01 = np.asarray([0,0,1]).astype('float32')
 
-    yellow = np.asarray([1,1,0]).astype('float32')
-    cyan = np.asarray([0,1,1]).astype('float32')
-    magenta = np.asarray([1,0,1]).astype('float32')
+    yellow_01 = np.asarray([1,1,0]).astype('float32')
+    cyan_01 = np.asarray([0,1,1]).astype('float32')
+    magenta_01 = np.asarray([1,0,1]).astype('float32')
 
-    orange = np.asarray([1,0.592156862745098,0.1882352941176471]).astype('float32')
+    orange_01 = np.asarray([1,0.592156862745098,0.1882352941176471]).astype('float32')
+
+    white = np.asarray([255,255,255]).astype('uint8')
+
+    red = np.asarray([255,0,0]).astype('uint8')
+    green = np.asarray([0,255,0]).astype('uint8')
+    blue = np.asarray([0,0,255]).astype('uint8')
+
+    yellow = np.asarray([255,255,0]).astype('uint8')
+    magenta = np.asarray([255,0,255]).astype('uint8')
+    cyan = np.asarray([0,255,255]).astype('uint8')
 
 # helpers, so you don't have to write stuff like np.asarray([])
 class Vector3:

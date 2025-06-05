@@ -187,6 +187,15 @@ class Model:
         self.tags.append(tagName)
     
     # COLLISION STUFF ****************************************************************************************
+
+    # same as below, but for sphere colliders
+    def closest_point_sphere(self, foreignPoint):
+        rmpoint= self.midpoint()
+        worldSpaceMidpoint = np.asarray([rmpoint[3],rmpoint[4],rmpoint[5]])
+
+        localPoint = np.asarray([foreignPoint[0] - worldSpaceMidpoint[0],foreignPoint[1] - worldSpaceMidpoint[1],foreignPoint[2] - worldSpaceMidpoint[2]])
+
+        return m.normalize_3d(localPoint) * self.data["collider_bounds"]
     
     # given a point, find the closest point ON THIS OBJECT'S COLLIDER
     def closest_point(self, foreignPoint):
@@ -303,16 +312,40 @@ class Model:
                 return True
             
         return False
+    
+    def is_triggered_sphere(self):
+        possibleObjects = engine.getObjectsWithTag("interact")
+
+        for i in possibleObjects:
+            if (not i.shouldBePhysics):
+                    continue
+            
+            if (m.length_3(i.worldTransform.position - self.worldTransform.position) < self.data["trigger_bounds"]):
+                return True
+            
+        return False
 
     def add_box_collider(self,boundsX,boundsY,boundsZ):
         self.add_tag("box_collider")
 
         self.add_data("collider_bounds", np.asarray([boundsX,boundsY,boundsZ]))
 
+    # since you won't be able to have sphere AND box colliders on the same object,
+    # we can just use the same data entry, passing in only one value
+    def add_sphere_collider(self,radius):
+        self.add_tag("sphere_collider")
+
+        self.add_data("collider_bounds", np.asarray([radius]))
+
     def add_box_trigger(self,boundsX,boundsY,boundsZ):
         self.add_tag("box_trigger")
 
         self.add_data("trigger_bounds", np.asarray([boundsX,boundsY,boundsZ]))
+
+    def add_sphere_trigger(self,radius):
+        self.add_tag("sphere_trigger")
+
+        self.add_data("trigger_bounds", np.asarray([radius]))
 
     # ****************************************************************************************
 
