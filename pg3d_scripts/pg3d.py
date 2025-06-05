@@ -755,17 +755,42 @@ def spawnObjectWithTexture(objPath, texturePath, name, x, y, z, tags, color):
     if (getFirstIndex(name, '(') < len(name)): # object names may NOT have parentheses!
         return
     name = nameModel(name)
-    Model(name,objPath, texturePath,tags,color)
+    newObj = Model(name,objPath, texturePath,tags,color)
 
     getObject(name).set_local_position(x,y,z)
+
+    return newObj
+
+def spawnScaledObjectWithTexture(objPath, texturePath, name, x, y, z, scale_x, scale_y, scale_z, tags, color):
+    if (getFirstIndex(name, '(') < len(name)): # object names may NOT have parentheses!
+        return
+    name = nameModel(name)
+    newObj = Model(name,objPath, texturePath,tags,color)
+
+    getObject(name).set_local_position(x,y,z)
+    getObject(name).set_scale(scale_x,scale_y,scale_z)
+
+    return newObj
+
+def spawnObjectWithTexture(objPath, texturePath, name, x, y, z, tags, color):
+    if (getFirstIndex(name, '(') < len(name)): # object names may NOT have parentheses!
+        return
+    name = nameModel(name)
+    newObj = Model(name,objPath, texturePath,tags,color)
+
+    getObject(name).set_local_position(x,y,z)
+
+    return newObj
 
 def spawnObjectWithColor(objPath, name, x, y, z, tags, colorR, colorG, colorB):
     if (getFirstIndex(name, '(') < len(name)):
         return
     name = nameModel(name)
-    Model(name,objPath, '',tags,np.asarray([colorR,colorG,colorB]).astype('uint8'))
+    newObj = Model(name,objPath, '',tags,np.asarray([colorR,colorG,colorB]).astype('uint8'))
 
     getObject(name).set_local_position(x,y,z)
+
+    return newObj
 
 def getObjectsWithTag(tag):
     toReturn = []
