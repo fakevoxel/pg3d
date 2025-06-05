@@ -430,7 +430,7 @@ def draw_triangle(sW, sH, frame, z_buffer, texture, proj_points, uv_points, minX
                         pixelColor = texture[int(u*text_size[0] + 1)][int(v*text_size[1])]
                         # ALL objects in the scene are rendered using alpha-clip, so if there's no color it's transparent
                         if (textureType == 1):
-                            if (pixelColor[0] > 0 and pixelColor[1] > 0 and pixelColor[2] > 0):
+                            if (pixelColor[0] > 0 or pixelColor[1] > 0 or pixelColor[2] > 0):
                                 frame[x, y] = pixelColor * color
 
                                 # z buffer stores values of 1 / z

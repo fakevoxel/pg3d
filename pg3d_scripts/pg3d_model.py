@@ -72,6 +72,20 @@ class Model:
 
         # either opaque or alphaclip, changes how the renderer deals with transparency
         self.textureType = "opaque"
+
+    # only used for particle objects, advances the sprite to create an animation
+    def checkAnimation(self):
+        # time between frames is in millis
+        if (pg.time.get_ticks() > self.data["last_frame_time"] + self.data["time_between_frames"]):
+            self.data["current_frame_index"] += 1
+            if (self.data["current_frame_index"] >= len(self.data["animation_frames"])):
+                if (self.data["destroy_when_finish"]):
+                    engine.destroyObject(self)
+                else:
+                    self.remove_tag("animated")
+            else:
+                self.setTexture(self.data["animation_frames"][self.data["current_frame_index"]])
+                self.data["last_frame_time"] = pg.time.get_ticks()
     
     # changes the texture on the model
     def setTexture(self, texture_path):
@@ -172,6 +186,10 @@ class Model:
     def midpoint(self):
         rawMidpoint = np.asarray([self.rawMidpoint[0],self.rawMidpoint[1],self.rawMidpoint[2],0.0,0.0,0.0])
         return self.transform_point(rawMidpoint)
+    
+    def getMidpointAsVector(self):
+        mp = self.midpoint()
+        return np.asarray([mp[0],mp[1],mp[2]])
 
     # whether the tags array has a given tag
     def hasTag(self, tag):
@@ -185,6 +203,11 @@ class Model:
         if (m.array_has_item(self.tags, tagName)):
             return
         self.tags.append(tagName)
+
+    def remove_tag(self, tagName):
+        if (m.array_has_item(self.tags, tagName)):
+            # pop whatever tag
+            self.tags.pop(engine.index_in_array(self.tags, tagName))
     
     # COLLISION STUFF ****************************************************************************************
 
@@ -295,8 +318,13 @@ class Model:
                 return True
             
         return False
+ 
+    # "cheap" trigger functions **********************************************************************
+    # im calling them cheap because they don't actually check trigger interaction, 
+    # they check whether the other object's position is in this objects trigger
+    # so its a really weird system that you really would never use unless you're REALLY starved for frames
 
-    def is_triggered(self):
+    def is_triggered_cheap(self):
         # assuming there IS actually a trigger collider when this function is called
         
         # also, the only objects that are detected in trigger colliders are ones with the "interact" tag
@@ -313,17 +341,41 @@ class Model:
             
         return False
     
-    def is_triggered_sphere(self):
+    def is_triggered_sphere_cheap(self):
         possibleObjects = engine.getObjectsWithTag("interact")
 
         for i in possibleObjects:
             if (not i.shouldBePhysics):
                     continue
-            
-            if (m.length_3(i.worldTransform.position - self.worldTransform.position) < self.data["trigger_bounds"]):
+                
+            # using worldTransform instead of midpoint
+            if (m.length_3d(i.worldTransform.position - self.worldTransform.position) < self.data["trigger_bounds"]):
                 return True
             
         return False
+    # **********************************************************************
+
+    # actual trigger functions **********************************************************************
+    # this function checks trigger interactions with OTHER SPHERE TRIGGERS ONLY
+    # it should ONLY BE CALLED FOR OBJECTS THAT HAVE A SPHERE TRIGGER THEMSELVES
+    def is_triggered_sphere_only(self):
+        possibleObjects = engine.getObjectsWithTag("interact")
+
+        for i in possibleObjects:
+            if (not i.shouldBePhysics):
+                    continue
+                
+            # as said above, we're only checking objects that have sphere triggers on them
+            # if the object doesn't have this tag, it doesn't have a sphere collider
+            if (not m.array_has_item(i.tags, "sphere_trigger")):
+                continue
+            
+            if (m.length_3d(i.getMidpointAsVector() - self.getMidpointAsVector()) < self.data["trigger_bounds"] + i.data["trigger_bounds"]):
+                return True
+            
+        return False
+    
+    # ****************************************************************************************
 
     def add_box_collider(self,boundsX,boundsY,boundsZ):
         self.add_tag("box_collider")
@@ -347,7 +399,27 @@ class Model:
 
         self.add_data("trigger_bounds", np.asarray([radius]))
 
-    # ****************************************************************************************
+    # im honestly not super worried about performance for the below functions, 
+    # because really how often are you messing with collider bounds?
+
+    # ONLY CALLED FOR OBJECTS WITH SPHERE COLLIDER
+    # this function is just easier than setting the data entry, it's really only for user-friendlyness
+    def set_collider_radius(self, r):
+        self.data["collider_bounds"] = r
+    # ONLY SPHERE TRIGGER
+    def set_trigger_radius(self, r):
+        self.data["trigger_bounds"] = r
+
+    # ONLY BOX COLLIDER
+    def set_collider_bounds(self, x, y, z):
+        self.data["collider_bounds"][0] = x
+        self.data["collider_bounds"][1] = y
+        self.data["collider_bounds"][2] = z
+    # ONLY BOX TRIGGER
+    def set_trigger_bounds(self, x, y, z):
+        self.data["trigger_bounds"][0] = x
+        self.data["trigger_bounds"][1] = y
+        self.data["trigger_bounds"][2] = z
 
     # when messing with models, please use the functions and don't mess with the variables themselves!
     # ESPECIALLY WITH TRANSFORM-COMPONENT STUFF, it makes life easier (and doesn't break the heirarchy)

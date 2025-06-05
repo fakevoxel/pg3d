@@ -9,6 +9,7 @@ from .pg3d_model import Model
 from .pg3d_model import ModelTransform
 from . import pg3d_math as m
 from . import pg3d_rendering
+from .pg3d_particle import ParticleManager
 
 # just to keep track of things, not actually used in code
 version = "0.1"
@@ -44,6 +45,7 @@ cameraLocalTransform = None
 cameraParent = None
 
 physicsEnabled = False
+particlesEnabled = False
 
 sky_texture = None
 
@@ -90,6 +92,28 @@ def init(w, h, wActual, hActual, ver):
 
     pg.mouse.set_visible(0)
     pg.mouse.set_pos(pg3d_rendering.renderConfig.screenWidth/2,pg3d_rendering.renderConfig.screenHeight/2)
+
+def spawnParticleSystem(name, object_count, position, use_gravity, texture_path):
+    ParticleManager(name, object_count, position, use_gravity, texture_path, [], 0, False)
+
+def spawnAndPlayParticleSystem(name, object_count, position, use_gravity, texture_path):
+    newParticle = ParticleManager(name, object_count, position, use_gravity, texture_path, [], 0, False)
+    newParticle.play()
+
+def spawnAnimatedParticleSystem(name, object_count, position, use_gravity, animationFrames, timeBetweenFrames, destroyOnFinish):
+    ParticleManager(name, object_count, position, use_gravity, '', animationFrames, timeBetweenFrames, destroyOnFinish)
+
+def spawnAndPlayAnimatedParticleSystem(name, object_count, position, use_gravity, animationFrames, timeBetweenFrames, destroyOnFinish):
+    newParticle = ParticleManager(name, object_count, position, use_gravity, '', animationFrames, timeBetweenFrames, destroyOnFinish)
+    newParticle.play()
+
+def getParticleSystemWithName(name):
+    for i in ParticleManager._registry:
+        if (i.name == name):
+            return i
+
+def playParticleSystem(systemName):
+    getParticleSystemWithName(systemName).play()
 
 # this exists just so I don't have to call two functions every time
 
@@ -301,6 +325,14 @@ def disablePhysics():
     global physicsEnabled
     physicsEnabled = False
 
+def enableParticles():
+    global particlesEnabled
+    particlesEnabled = True
+
+def disableParticles():
+    global particlesEnabled
+    particlesEnabled = False
+
 # used for camera controllers
 def parentCamera(object, offX, offY, offZ):
     global cameraParent
@@ -342,6 +374,19 @@ def update():
         hasClockStarted = True
 
     updateCursor()
+
+    # could have made this use the same variable as physics, but ah well
+    # this feels like a feature that's going to change lol
+    if (particlesEnabled):
+        for i in getObjectsWithTag("particle"):
+            if (i.hasTag("gravity")):
+                i.add_velocity(0.0,-1.0 * timeSinceLastFrame * gravityCoefficient, 0.0)
+            if (i.hasTag("lookAtPlayer")):
+                i.set_local_up(cameraWorldTransform.position - i.worldTransform.position)
+            if (i.hasTag("animated")):
+                i.checkAnimation()
+
+            i.add_local_position(i.linearVelocity[0] * timeSinceLastFrame,i.linearVelocity[1] * timeSinceLastFrame,i.linearVelocity[2] * timeSinceLastFrame)
 
     if (physicsEnabled):
         for i in getObjectsWithTag("physics"):
@@ -758,7 +803,7 @@ def getObjectIndex(name):
         counter += 1
 
 
-def destroyObject(objectName):
+def destroyObjectWithName(objectName):
     global cameraParent
 
     # I REALLY want to avoid goofy heirarchy logic here, so any children of the object will have their parent set as none
@@ -780,6 +825,29 @@ def destroyObject(objectName):
         
     # also, the camera parent might have a reference to it as well
     if (cameraParent.name == objectName):
+        cameraParent = None
+
+def destroyObject(obj):
+    global cameraParent
+
+    # I REALLY want to avoid goofy heirarchy logic here, so any children of the object will have their parent set as none
+    # regardless if this object was itself a child or not
+    for i in range(len(obj.children)):
+        obj.children[i].setParent(None)
+
+    # not quite as simple as removing it from the registry, even though that's step 1
+    objIndex = getObjectIndex(obj.name)
+    Model._registry.pop(objIndex)
+
+    # that's because some levels might still have a reference to the object
+    for i in Level._registry:
+        indexInLevel = index_in_array(i.objectNames, obj.name)
+
+        if (indexInLevel != -1):
+            i.objectNames.pop(indexInLevel)
+        
+    # also, the camera parent might have a reference to it as well
+    if (cameraParent.name == obj.name):
         cameraParent = None
 
 def spawnObjectWithTexture(objPath, texturePath, name, x, y, z, tags, color):

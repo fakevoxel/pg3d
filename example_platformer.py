@@ -34,6 +34,7 @@ def main():
     engine.getObject("coin").set_scale(2,2,2)
     # add a trigger so that we can detect when the coin is picked up
     engine.getObject("coin").add_box_trigger(2.0,2.0,2.0)
+    engine.getObject("coin").setAsTransparent()
 
     # interact tag so it works with trigger colliders
     engine.spawnCube("cube", 0.0, 50.0, 0.0, ["physics","interact","gravity"])
@@ -47,6 +48,7 @@ def main():
     engine.parentCameraWithName("cube",0.0,4.0,0.0)
 
     engine.enablePhysics()
+    engine.enableParticles()
 
     running = True
     while running:
@@ -72,10 +74,10 @@ def main():
         if (engine.getObject("coin") != None):
             engine.getObject("coin").rotate(0.1, np.asarray([0.0,1.0,0.0]))
 
-            if (engine.getObject("coin").is_triggered()):
+            if (engine.getObject("coin").is_triggered_cheap()):
                 engine.setBackGroundColor(255,255,255)
                 # we picked up the coin, so remove it
-                engine.destroyObject("coin")
+                engine.destroyObjectWithName("coin")
 
         # A lot of games use a first person camera controller, so PG3D has that as a built-in feature.
         # All you have to do is parent the camera to an object (the object represents the player) which we did above,
