@@ -7,59 +7,20 @@ import pygame as pg
 class Model:
     _registry = []
 
-    name = ""
-
-    # there are some tags that the engine looks for, like the 'physics' tag
-    tags = []
-
-    # models use dictionaries as per-object variables
-    # this allows the storage of things like collider data
-    # (there is a collider TAG too, because it makes it easier to search through objects (objects have less tags than data), but that might change)
-    data = {}
-
-    # how many parents does this object have?
-    # not a child --> 0
-    # child of an object --> 1
-    # child of an object, which itself is a child of an object --> 2
-
-    # it's used to sort the heirarchy so that transforms can be applied properly
-    childLevel = 0
-
-    parent = None
-    # I thought at first that we don't need a reference to children, but it does make syncing everything easier
-    # (this is a list of objects)
-    children = []
-
-    # the world and local transforms of an object
-
-    # initialized as none here, they're actually set in the init function
-    worldTransform = None
-    localTransform = None
-
-    # physics stuff, not a part of the transform class
-    linearVelocity = np.asarray([0.0,0.0,0.0])
-    angularVelocity = np.asarray([0.0,0.0,0.0])
-    
-    # average of all vertices
-    rawMidpoint = np.asarray([0.0,0.0,0.0])
-
-    color = np.asarray([0,0,0]).astype('uint8')
-    
-    # whether to render the object or not
-    # normally this is set through the level system, the object inherits the variable from the parent level
-    # IF THE OBJECT IS IN A LEVEL, you cannot manually enable/disable it BUT YOU CAN IF IT'S NOT IN A LEVEL by calling show()/hide()
-    shouldBeDrawn = True
-
-    shouldBePhysics = True
-    
-    # either opaque or alphaclip, changes how the renderer deals with transparency
-    textureType = "opaque"
-
     def __init__(self, name, path_obj, path_texture, tags, color):
+
+        # the interesting thing is, python doesn't care if you initialize variables outside of the __init__ function
+        # if you say they exist here, they exist
+        
+        # in fact, if you DON'T say they exist here and DO above, they will be treated as global variables (for some reason)
+        # by that I mean there will be one instance of the variable for ALL models, not for each
+
         self.name = name
 
+        # there are some tags that the engine looks for, like the 'physics' tag
         self.tags = tags
 
+        # the world and local transforms of an object
         # both the same, since obj doesn't start out as a child
         self.localTransform = ModelTransform(np.asarray([0.0,0.0,0.0]), np.asarray([0.0,0.0,1.0]), np.asarray([0.0,1.0,0.0]), np.asarray([1.0,1.0,1.0]))
         self.worldTransform = ModelTransform(np.asarray([0.0,0.0,0.0]), np.asarray([0.0,0.0,1.0]), np.asarray([0.0,1.0,0.0]), np.asarray([1.0,1.0,1.0]))
@@ -72,16 +33,45 @@ class Model:
         self.points, self.triangles, self.texture_uv, self.texture_map =  utils.read_obj(path_obj)
         self.texture = pg.surfarray.array3d(pg.image.load(path_texture))
 
+        # average of all vertices
         self.rawMidpoint = self.calculateRawMidpoint()
 
+        # physics stuff, not a part of the transform class
+        self.angularVelocity = np.asarray([0.0,0.0,0.0])
+        self.linearVelocity = np.asarray([0.0,0.0,0.0])
+
+        # whether to render the object or not
+        # normally this is set through the level system, the object inherits the variable from the parent level
+        # IF THE OBJECT IS IN A LEVEL, you cannot manually enable/disable it BUT YOU CAN IF IT'S NOT IN A LEVEL by calling show()/hide()
+        self.shouldBeDrawn = True
+
+        # whether the collider, etc. should interact
+        self.shouldBePhysics = True
+
+        # models use dictionaries as per-object variables
+        # this allows the storage of things like collider data
+        # (there is a collider TAG too, because it makes it easier to search through objects (objects have less tags than data), but that might change)
         self.data = {}
 
+        self.parent = None
+
+        # I thought at first that we don't need a reference to children, but it does make syncing everything easier
+        # (this is a list of objects)
         self.children = []
+        # how many parents does this object have?
+        # not a child --> 0
+        # child of an object --> 1
+        # child of an object, which itself is a child of an object --> 2
+
+        # it's used to sort the heirarchy so that transforms can be applied properly
         self.childLevel = 0
 
         # for textured models, the color is multiplied by the texture
         # for colored models, the color applies to all geometry
         self.color = color
+
+        # either opaque or alphaclip, changes how the renderer deals with transparency
+        self.textureType = "opaque"
     
     # changes the texture on the model
     def setTexture(self, texture_path):
