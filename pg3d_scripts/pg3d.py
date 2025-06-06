@@ -107,15 +107,15 @@ def spawnAndPlayParticleSystemWithVelocity(name, scale, position, use_gravity, t
     ParticleManager(name, 1, 1, scale, scale, position, use_gravity, texture_path, [], 0, False, False, velocity_direction, min_magnitude, max_magnitude, 0, 0, 0, life_time, life_time).play()
 
 def spawnAnimatedParticleSystem(name, scale, position, use_gravity, animation_frames, time_between_frames, life_time, loop_animation, destroy_when_finished):
-    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, loop_animation, destroy_when_finished, Vector3.ZERO, 0, 0, 0, 0, 0, life_time, life_time)
+    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, destroy_when_finished, loop_animation, Vector3.ZERO, 0, 0, 0, 0, 0, life_time, life_time)
 def spawnAndPlayAnimatedParticleSystem(name, scale, position, use_gravity, animation_frames, time_between_frames, life_time, loop_animation, destroy_when_finished):
-    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, loop_animation, destroy_when_finished, Vector3.ZERO, 0, 0, 0, 0, 0, life_time, life_time).play()
+    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, destroy_when_finished, loop_animation, Vector3.ZERO, 0, 0, 0, 0, 0, life_time, life_time).play()
 
 def spawnAnimatedParticleSystemWithVelocity(name, scale, position, use_gravity, animation_frames, time_between_frames, life_time, loop_animation, destroy_when_finished, velocity_direction, max_magnitude, min_magnitude):
-    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, loop_animation, destroy_when_finished, velocity_direction, min_magnitude, max_magnitude, 0, 0, 0, life_time, life_time)
+    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, destroy_when_finished, loop_animation, velocity_direction, min_magnitude, max_magnitude, 0, 0, 0, life_time, life_time)
     # i think this one wins the longest function name contest
 def spawnAndPlayAnimatedParticleSystemWithVelocity(name, scale, position, use_gravity, animation_frames, time_between_frames, life_time, loop_animation, destroy_when_finished, velocity_direction, max_magnitude, min_magnitude):
-    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, loop_animation, destroy_when_finished, velocity_direction, min_magnitude, max_magnitude, 0, 0, 0, life_time, life_time).play()
+    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, destroy_when_finished, loop_animation, velocity_direction, min_magnitude, max_magnitude, 0, 0, 0, life_time, life_time).play()
 
 def getParticleSystemWithName(name):
     for i in ParticleManager._registry:
