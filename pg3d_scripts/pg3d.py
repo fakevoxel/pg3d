@@ -1177,76 +1177,86 @@ def project_2d(a,b):
 
     return np.asarray(b[0] * coefficient,b[1] * coefficient)
     
+# Essentially shorthand for common colors, to make code more readable
+# these shouldn't be changing, so they're all constants
+# orange was just a color I made in paint, hence the specific numbers
 class Color:
-    white_01 = np.asarray([1,1,1]).astype('float32')
+    WHITE_01 = np.asarray([1,1,1]).astype('float32')
 
-    red_01 = np.asarray([1,0,0]).astype('float32')
-    green_01 = np.asarray([0,1,0]).astype('float32')
-    blue_01 = np.asarray([0,0,1]).astype('float32')
+    RED_01 = np.asarray([1,0,0]).astype('float32')
+    GREEN_01 = np.asarray([0,1,0]).astype('float32')
+    BLUE_01 = np.asarray([0,0,1]).astype('float32')
 
-    yellow_01 = np.asarray([1,1,0]).astype('float32')
-    cyan_01 = np.asarray([0,1,1]).astype('float32')
-    magenta_01 = np.asarray([1,0,1]).astype('float32')
+    YELLOW_01 = np.asarray([1,1,0]).astype('float32')
+    CYAN_01 = np.asarray([0,1,1]).astype('float32')
+    MAGENTA_01 = np.asarray([1,0,1]).astype('float32')
 
-    orange_01 = np.asarray([1,0.592156862745098,0.1882352941176471]).astype('float32')
+    ORANGE_01 = np.asarray([1,0.592156862745098,0.1882352941176471]).astype('float32')
 
-    white = np.asarray([255,255,255]).astype('uint8')
+    WHITE = np.asarray([255,255,255]).astype('uint8')
 
-    red = np.asarray([255,0,0]).astype('uint8')
-    green = np.asarray([0,255,0]).astype('uint8')
-    blue = np.asarray([0,0,255]).astype('uint8')
+    RED = np.asarray([255,0,0]).astype('uint8')
+    GREEN = np.asarray([0,255,0]).astype('uint8')
+    BLUE = np.asarray([0,0,255]).astype('uint8')
 
-    yellow = np.asarray([255,255,0]).astype('uint8')
-    magenta = np.asarray([255,0,255]).astype('uint8')
-    cyan = np.asarray([0,255,255]).astype('uint8')
+    YELLOW = np.asarray([255,255,0]).astype('uint8')
+    MAGENTA = np.asarray([255,0,255]).astype('uint8')
+    CYAN = np.asarray([0,255,255]).astype('uint8')
 
 # helpers, so you don't have to write stuff like np.asarray([])
+# like colors, these are constants, because they dont ever change
+# i dont like typing capitals, why can't I just have lowercase constants?
 class Vector3:
-    one = np.asarray([1.0,1.0,1.0])
-    zero = np.asarray([0.0,0.0,0.0])
+    # unity-like naming convention ************************************************************
+    ONE = np.asarray([1.0,1.0,1.0])
+    ZERO = np.asarray([0.0,0.0,0.0])
 
-    forward = np.asarray([0.0,0.0,1.0])
-    backward = np.asarray([0.0,0.0,-1.0])
+    FORWARD = np.asarray([0.0,0.0,1.0])
+    BACKWARD = np.asarray([0.0,0.0,-1.0])
 
     # left is positive, because PG3D uses a left-handed coordinate system
-    left = np.asarray([1.0,0.0,0.0])
-    right = np.asarray([-1.0,0.0,0.0])
+    LEFT = np.asarray([1.0,0.0,0.0])
+    RIGHT = np.asarray([-1.0,0.0,0.0])
 
-    up = np.asarray([0.0,1.0,0.0])
-    down = np.asarray([0.0,-1.0,0.0])
+    UP = np.asarray([0.0,1.0,0.0])
+    DOWN = np.asarray([0.0,-1.0,0.0])
+    # ************************************************************
 
-    # alternative names:
-    x_positive = np.asarray([1.0,0.0,0.0])
-    x_negative = np.asarray([-1.0,0.0,0.0])
+    # alternative names: ************************************************************
+    X_POSITIVE = np.asarray([1.0,0.0,0.0])
+    X_NEGATIVE = np.asarray([-1.0,0.0,0.0])
 
-    y_positive = np.asarray([0.0,1.0,0.0])
-    y_negative = np.asarray([0.0,-1.0,0.0])
+    Y_POSITIVE = np.asarray([0.0,1.0,0.0])
+    Y_NEGATIVE = np.asarray([0.0,-1.0,0.0])
 
-    z_positive = np.asarray([0.0,0.0,1.0])
-    z_negative = np.asarray([0.0,0.0,-1.0])
+    Z_POSITIVE = np.asarray([0.0,0.0,1.0])
+    Z_NEGATIVE = np.asarray([0.0,0.0,-1.0])
+    # ************************************************************
 
     def new(x,y,z):
         return np.asarray(x,y,z)
-    
 class Vector2:
-
-    one = np.asarray([1.0,1.0])
-    zero = np.asarray([0.0,0.0])
+    # unity-like naming convention ************************************************************
+    ONE = np.asarray([1.0,1.0])
+    ZERO = np.asarray([0.0,0.0])
  
     # in 3D it's left = positive, but here it's right = positive
     # why? idk
-    left = np.asarray([-1.0,0.0])
-    right = np.asarray([1.0,0.0])
+    LEFT = np.asarray([-1.0,0.0])
+    RIGHT = np.asarray([1.0,0.0])
 
-    up = np.asarray([0.0,1.0])
-    down = np.asarray([0.0,-1.0])
+    UP = np.asarray([0.0,1.0])
+    DOWN = np.asarray([0.0,-1.0])
+    # ************************************************************
 
-    # alternative names:
-    x_positive = right = np.asarray([1.0,0.0])
-    x_negative = np.asarray([-1.0,0.0])
+    # alternative names: ************************************************************
+    X_POSITIVE = right = np.asarray([1.0,0.0])
+    X_NEGATIVE = np.asarray([-1.0,0.0])
 
-    y_positive = np.asarray([0.0,1.0])
-    y_negative = np.asarray([0.0,-1.0])
+    Y_POSITIVE = np.asarray([0.0,1.0])
+    Y_NEGATIVE = np.asarray([0.0,-1.0])
+
+    # ************************************************************
 
     def new(x,y):
         return np.asarray(x,y) 
@@ -1295,8 +1305,8 @@ class Level:
 
 # more helpers
 class Rotation:
-    degToRadConversion = np.pi / 180
-    radToDegConversion = 180 / np.pi
+    DEG_TO_RAD = np.pi / 180
+    RAD_TO_DEG = 180 / np.pi
 
     def toRadians(deg):
         return deg * np.pi / 180
