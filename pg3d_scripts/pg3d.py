@@ -12,7 +12,7 @@ from . import pg3d_rendering
 from .pg3d_particle import ParticleManager
 
 # just to keep track of things, not actually used in code
-version = "0.1"
+version = "0.4.1"
 
 # this is the default sky color, but can be set using setSkyColor()
 skyColor = np.asarray([1.0,1.0,1.0])
@@ -106,16 +106,16 @@ def spawnParticleSystemWithVelocity(name, scale, position, use_gravity, texture_
 def spawnAndPlayParticleSystemWithVelocity(name, scale, position, use_gravity, texture_path, life_time, velocity_direction, max_magnitude, min_magnitude):
     ParticleManager(name, 1, 1, scale, scale, position, use_gravity, texture_path, [], 0, False, False, velocity_direction, min_magnitude, max_magnitude, 0, 0, 0, life_time, life_time).play()
 
-def spawnAnimatedParticleSystem(name, scale, position, use_gravity, animation_frames, time_between_frames, life_time):
-    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, False, False, Vector3.ZERO, 0, 0, 0, 0, 0, life_time, life_time)
-def spawnAndPlayAnimatedParticleSystem(name, scale, position, use_gravity, animation_frames, time_between_frames, life_time):
-    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, False, False, Vector3.ZERO, 0, 0, 0, 0, 0, life_time, life_time).play()
+def spawnAnimatedParticleSystem(name, scale, position, use_gravity, animation_frames, time_between_frames, life_time, loop_animation, destroy_when_finished):
+    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, loop_animation, destroy_when_finished, Vector3.ZERO, 0, 0, 0, 0, 0, life_time, life_time)
+def spawnAndPlayAnimatedParticleSystem(name, scale, position, use_gravity, animation_frames, time_between_frames, life_time, loop_animation, destroy_when_finished):
+    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, loop_animation, destroy_when_finished, Vector3.ZERO, 0, 0, 0, 0, 0, life_time, life_time).play()
 
-def spawnAnimatedParticleSystemWithVelocity(name, scale, position, use_gravity, animation_frames, time_between_frames, life_time, velocity_direction, max_magnitude, min_magnitude):
-    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, False, False, velocity_direction, min_magnitude, max_magnitude, 0, 0, 0, life_time, life_time)
+def spawnAnimatedParticleSystemWithVelocity(name, scale, position, use_gravity, animation_frames, time_between_frames, life_time, loop_animation, destroy_when_finished, velocity_direction, max_magnitude, min_magnitude):
+    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, loop_animation, destroy_when_finished, velocity_direction, min_magnitude, max_magnitude, 0, 0, 0, life_time, life_time)
     # i think this one wins the longest function name contest
-def spawnAndPlayAnimatedParticleSystemWithVelocity(name, scale, position, use_gravity, animation_frames, time_between_frames, life_time, velocity_direction, max_magnitude, min_magnitude):
-    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, False, False, velocity_direction, min_magnitude, max_magnitude, 0, 0, 0, life_time, life_time).play()
+def spawnAndPlayAnimatedParticleSystemWithVelocity(name, scale, position, use_gravity, animation_frames, time_between_frames, life_time, loop_animation, destroy_when_finished, velocity_direction, max_magnitude, min_magnitude):
+    ParticleManager(name, 1, 1, scale, scale, position, use_gravity, '', animation_frames, time_between_frames, loop_animation, destroy_when_finished, velocity_direction, min_magnitude, max_magnitude, 0, 0, 0, life_time, life_time).play()
 
 def getParticleSystemWithName(name):
     for i in ParticleManager._registry:
@@ -405,9 +405,10 @@ def update():
             if (i.hasTag("scaleChange")):
                 i.add_number_to_scale(i.data["scale_change"])
 
-            if (i.data["time_when_spawned"] + i.data["life_time"] < pg.time.get_ticks()):
-                destroyObject(i)
-                continue
+            if (i.data["life_time"] != -1):
+                if (i.data["time_when_spawned"] + i.data["life_time"] < pg.time.get_ticks()):
+                    destroyObject(i)
+                    continue
 
             i.add_local_position(i.linearVelocity[0] * timeSinceLastFrame,i.linearVelocity[1] * timeSinceLastFrame,i.linearVelocity[2] * timeSinceLastFrame)
 

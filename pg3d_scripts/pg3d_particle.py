@@ -89,11 +89,11 @@ class ParticleManager:
 
     # there's not a TON of logic here, most of that is actually in pg3d.update() (engine.update())
     def play(self):
-        objectCount = random.random(self.min_object_count, self.max_object_count)
+        objectCount = random.randint(self.min_object_count, self.max_object_count)
         for i in range(objectCount):
             # spawn the object and append it to the list
             
-            objScale = random.random(self.min_scale, self.max_scale)
+            objScale = random.uniform(self.min_scale, self.max_scale)
 
             # animation stuff
             if (self.timeBetweenFrames > 0):
@@ -129,7 +129,7 @@ class ParticleManager:
 
             newParticle.setAsTransparent()
 
-            lifeTime = random.random(self.min_life_time, self.max_life_time)
+            lifeTime = random.uniform(self.min_life_time, self.max_life_time)
             newParticle.add_data("life_time",lifeTime)
             newParticle.add_data("time_when_spawned",pg.time.get_ticks())
 
@@ -148,5 +148,5 @@ class ParticleManager:
             newParticle.set_local_up(engine.cameraWorldTransform.position - self.position)
 
             # applying velocity to the particle
-            velocityMagnitude = random.random(self.min_velocity_magnitude, self.max_velocity_magnitude)
+            velocityMagnitude = random.uniform(self.min_velocity_magnitude, self.max_velocity_magnitude)
             newParticle.set_velocity(self.velocity_direction[0]*velocityMagnitude,self.velocity_direction[1]*velocityMagnitude,self.velocity_direction[2]*velocityMagnitude)
