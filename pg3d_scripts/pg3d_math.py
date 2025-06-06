@@ -5,6 +5,7 @@ from numba import njit
 def clamp(val, lower, upper):
     return min(max(val, lower), upper)
 
+@njit()
 def average_point_3d(list):
     toReturn = np.asarray([0.0,0.0,0.0])
     for i in list:
@@ -22,6 +23,7 @@ def array_has_item(array, item):
     return False
 
 # the box's bounds represent SIZE, NOT EXTENTS
+@njit()
 def clamp_box_3d(point, boxCenter, boxSizes):
     newX = min(max(point[0], boxCenter[0] - boxSizes[0]/2), boxCenter[0] + boxSizes[0]/2)
     newY = min(max(point[1], boxCenter[1] - boxSizes[1]/2), boxCenter[1] + boxSizes[1]/2)
@@ -89,7 +91,7 @@ def add_3d(a, b):
     return np.asarray([a[0] + b[0],a[1] + b[1], a[2] + b[2]])
 
 # subtract b from a 
-@njit
+@njit()
 def subtract_3d(a, b):
     return np.asarray([a[0] - b[0], a[1] - b[1], a[2] - b[2]])
 
@@ -99,6 +101,7 @@ def length_3d(a):
     return np.sqrt(a[0] * a[0] + a[1] * a[1] + a[2] * a[2])
 
 # calculate the angle in RADIANS between two vectors
+@njit()
 def angle_3d(a, b):
     dp = dot_3d(a,b)
     la = length_3d(a)
@@ -113,6 +116,7 @@ def cross_3d(a,b):
     return np.asarray([a[1]*b[2] - a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]])
 
 # takes in a vector, outputs that vector as a unit vector
+@njit()
 def normalize_3d(a):
     l = length_3d(a)
 
@@ -123,6 +127,7 @@ def normalize_3d(a):
 
 # whether a point is in an AABB (axis aligned bounding box)
 # again, the sizes are SIZES, NOT EXTENTS in each direction
+@njit()
 def point_in_box_3d(point, boxCenter, boxSizes):
     if (point[0] > boxCenter[0] - boxSizes[0]/2 and point[1] > boxCenter[1] - boxSizes[1]/2 and point[2] > boxCenter[2] - boxSizes[2]/2 and point[0] < boxCenter[0] + boxSizes[0]/2 and point[1] < boxCenter[1] + boxSizes[1]/2 and point[2] < boxCenter[2] + boxSizes[2]/2):
         return True
@@ -130,7 +135,7 @@ def point_in_box_3d(point, boxCenter, boxSizes):
         return False
 
 # rotate a vector (x,y,z) around another vector, by an angle
-@njit
+@njit()
 def rotate_vector_3d(vector, axis, angle):
     # rotate around x axis
     i = np.asarray([0.0,0.0,0.0])

@@ -81,11 +81,16 @@ class Model:
             if (self.data["current_frame_index"] >= len(self.data["animation_frames"])):
                 if (self.data["destroy_when_finish"]):
                     engine.destroyObject(self)
+                    return True
+                elif(self.data["loop_animation"]): # restarting the animation
+                    self.data["current_frame_index"] = 0
                 else:
-                    self.remove_tag("animated")
+                    self.remove_tag("animated") # just leaving the object as-is, on the last frame
             else:
                 self.setTexture(self.data["animation_frames"][self.data["current_frame_index"]])
                 self.data["last_frame_time"] = pg.time.get_ticks()
+
+        return False
     
     # changes the texture on the model
     def setTexture(self, texture_path):
@@ -429,10 +434,20 @@ class Model:
         self.linearVelocity[1] += y
         self.linearVelocity[2] += z
 
+    def add_velocity_vector(self,new_velocity_vector):
+        self.linearVelocity[0] += new_velocity_vector[0]
+        self.linearVelocity[1] += new_velocity_vector[1]
+        self.linearVelocity[2] += new_velocity_vector[2]
+
     def set_velocity(self,x,y,z):
         self.linearVelocity[0] = x
         self.linearVelocity[1] = y
         self.linearVelocity[2] = z
+    
+    def set_velocity_vector(self,new_velocity_vector):
+        self.linearVelocity[0] = new_velocity_vector[0]
+        self.linearVelocity[1] = new_velocity_vector[1]
+        self.linearVelocity[2] = new_velocity_vector[2]
 
     # set position to some numbers
     # this sets the LOCAL POSITION
@@ -476,9 +491,9 @@ class Model:
     def get_up(self):
         return self.localTransform.up
 
-    def set_local_forward(self, v):
-        appliedRotationAxis = m.normalize_3d(m.cross_3d(self.localTransform.forward, v))
-        appliedRotationAngle = m.angle_3d(self.localTransform.forward, v)
+    def set_local_forward(self, forward_vector):
+        appliedRotationAxis = m.normalize_3d(m.cross_3d(self.localTransform.forward, forward_vector))
+        appliedRotationAngle = m.angle_3d(self.localTransform.forward, forward_vector)
 
         if (appliedRotationAngle > 0.001 and appliedRotationAngle < np.pi - 0.001):
             self.localTransform.forward = m.rotate_vector_3d(self.localTransform.forward, appliedRotationAxis, appliedRotationAngle)
@@ -487,9 +502,9 @@ class Model:
         self.syncTransformWithParent() # refreshing the world transform
         self.syncChildren()
 
-    def set_local_up(self, v):
-        appliedRotationAxis = m.normalize_3d(m.cross_3d(self.localTransform.up, v))
-        appliedRotationAngle = m.angle_3d(self.localTransform.up, v)
+    def set_local_up(self, forward_vector):
+        appliedRotationAxis = m.normalize_3d(m.cross_3d(self.localTransform.up, forward_vector))
+        appliedRotationAngle = m.angle_3d(self.localTransform.up, forward_vector)
 
         if (appliedRotationAngle > 0.01):
             self.localTransform.forward = m.rotate_vector_3d(self.localTransform.forward, appliedRotationAxis, appliedRotationAngle)
@@ -506,6 +521,15 @@ class Model:
 
         self.syncTransformWithParent() # refreshing the world transform
         self.syncChildren()
+
+    def set_scale_vector(self, new_scale_vector):
+        self.localTransform.scale[0] += new_scale_vector[0]
+        self.localTransform.scale[1] += new_scale_vector[1]
+        self.localTransform.scale[2] += new_scale_vector[2]
+
+        self.syncTransformWithParent() # refreshing the world transform
+        self.syncChildren()
+
     # same as above, but with one number
     def set_scale_to_number(self, n):
         self.localTransform.scale[0] = n
@@ -519,6 +543,22 @@ class Model:
         self.localTransform.scale[0] += a
         self.localTransform.scale[1] += b
         self.localTransform.scale[2] += c
+        
+        self.syncTransformWithParent() # refreshing the world transform
+        self.syncChildren()
+
+    def add_scale_vector(self, vector_to_add):
+        self.localTransform.scale[0] += vector_to_add[0]
+        self.localTransform.scale[1] += vector_to_add[1]
+        self.localTransform.scale[2] += vector_to_add[2]
+        
+        self.syncTransformWithParent() # refreshing the world transform
+        self.syncChildren()
+
+    def add_number_to_scale(self, n):
+        self.localTransform.scale[0] += n
+        self.localTransform.scale[1] += n
+        self.localTransform.scale[2] += n
         
         self.syncTransformWithParent() # refreshing the world transform
         self.syncChildren()

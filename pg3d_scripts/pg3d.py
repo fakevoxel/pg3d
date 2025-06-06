@@ -57,6 +57,9 @@ sky_texture = None
 # the joysticks that are currently connected to the computer
 connectedJoysticks = []
 
+firstPerson_camera_max_dot = 0.5
+firstPerson_camera_min_dot = 0.5
+
 # ********      main engine functions:     ********   
 def init(w, h, wActual, hActual, ver):
     global clock
@@ -276,6 +279,7 @@ def get_joystick_right_y(index, deadband):
     return val
 
 # yes, you could just have a deadband of 0
+# instead I have made it its own function
 def get_raw_joystick_left_x(index):
     if (len(connectedJoysticks) == 0):
         return 0
@@ -325,6 +329,7 @@ def disablePhysics():
     global physicsEnabled
     physicsEnabled = False
 
+# particles are updated separately from normal physics objects
 def enableParticles():
     global particlesEnabled
     particlesEnabled = True
@@ -334,17 +339,17 @@ def disableParticles():
     particlesEnabled = False
 
 # used for camera controllers
-def parentCamera(object, offX, offY, offZ):
+def parentCamera(object, offset_x, offset_y, offset_z):
     global cameraParent
 
     cameraParent = object
-    cameraLocalTransform.position = np.asarray([offX, offY, offZ])
+    cameraLocalTransform.position = np.asarray([offset_x, offset_y, offset_z])
 
-def parentCameraWithName(objName, offX, offY, offZ):
+def parentCameraWithName(objName, offset_x, offset_y, offset_z):
     global cameraParent
 
     cameraParent = getObject(objName)
-    cameraLocalTransform.position = np.asarray([offX, offY, offZ])
+    cameraLocalTransform.position = np.asarray([offset_x, offset_y, offset_z])
 
 def unParentCamera():
     global cameraParent
@@ -384,7 +389,18 @@ def update():
             if (i.hasTag("lookAtPlayer")):
                 i.set_local_up(cameraWorldTransform.position - i.worldTransform.position)
             if (i.hasTag("animated")):
-                i.checkAnimation()
+                # the bool being true means it was destroyed
+                if (i.checkAnimation()):
+                    continue
+
+            if (i.hasTag("hasDrag") and m.length_3d(i.velocity)):
+                i.add_velocity_vector(i.velocity * -i.data["drag_multiplier"])
+            if (i.hasTag("scaleChange")):
+                i.add_number_to_scale(i.data["scale_change"])
+
+            if (i.data["time_when_spawned"] + i.data["life_time"] < pg.time.get_ticks()):
+                destroyObject(i)
+                continue
 
             i.add_local_position(i.linearVelocity[0] * timeSinceLastFrame,i.linearVelocity[1] * timeSinceLastFrame,i.linearVelocity[2] * timeSinceLastFrame)
 
@@ -559,6 +575,7 @@ def setCameraPosition(x,y,z):
 def getCursorChange():
     return mouseChange
 
+# called from update(), user should NOT call this
 def updateCursor():
     global mousePos
     global mouseChange
@@ -570,44 +587,47 @@ def updateCursor():
         pg.mouse.set_pos(pg3d_rendering.renderConfig.screenWidth/2,pg3d_rendering.renderConfig.screenHeight/2)
     mouseChange = m.subtract_2d(mouse_position(), mousePos)
     mousePos = mouse_position()
+
+# there's an offset here because the engine allows the mouse position to be off screen
+# its explained at the top of this script I think
 def mouse_position():
     return pg.mouse.get_pos() + mouseOffset
 
-def updateCamera_freecam(moveSpeed):
+def updateCamera_freecam(move_speed):
     global cameraLocalTransform
     global timeSinceLastFrame
 
     pressed_keys = pg.key.get_pressed()
     if pressed_keys[ord('w')]:
         forward = cameraWorldTransform.forward
-        cameraLocalTransform.position[0] += forward[0] * moveSpeed * timeSinceLastFrame
-        cameraLocalTransform.position[1] += forward[1] * moveSpeed * timeSinceLastFrame
-        cameraLocalTransform.position[2] += forward[2] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[0] += forward[0] * move_speed * timeSinceLastFrame
+        cameraLocalTransform.position[1] += forward[1] * move_speed * timeSinceLastFrame
+        cameraLocalTransform.position[2] += forward[2] * move_speed * timeSinceLastFrame
     elif pressed_keys[ord('s')]:
         forward = cameraWorldTransform.forward
-        cameraLocalTransform.position[0] -= forward[0] * moveSpeed * timeSinceLastFrame
-        cameraLocalTransform.position[1] -= forward[1] * moveSpeed * timeSinceLastFrame
-        cameraLocalTransform.position[2] -= forward[2] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[0] -= forward[0] * move_speed * timeSinceLastFrame
+        cameraLocalTransform.position[1] -= forward[1] * move_speed * timeSinceLastFrame
+        cameraLocalTransform.position[2] -= forward[2] * move_speed * timeSinceLastFrame
     if pressed_keys[ord('a')]:
         forward = cameraWorldTransform.get_right()
-        cameraLocalTransform.position[0] += forward[0] * moveSpeed * timeSinceLastFrame
-        cameraLocalTransform.position[1] += forward[1] * moveSpeed * timeSinceLastFrame
-        cameraLocalTransform.position[2] += forward[2] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[0] += forward[0] * move_speed * timeSinceLastFrame
+        cameraLocalTransform.position[1] += forward[1] * move_speed * timeSinceLastFrame
+        cameraLocalTransform.position[2] += forward[2] * move_speed * timeSinceLastFrame
     elif pressed_keys[ord('d')]:
         forward = cameraWorldTransform.get_right()
-        cameraLocalTransform.position[0] -= forward[0] * moveSpeed * timeSinceLastFrame
-        cameraLocalTransform.position[1] -= forward[1] * moveSpeed * timeSinceLastFrame
-        cameraLocalTransform.position[2] -= forward[2] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[0] -= forward[0] * move_speed * timeSinceLastFrame
+        cameraLocalTransform.position[1] -= forward[1] * move_speed * timeSinceLastFrame
+        cameraLocalTransform.position[2] -= forward[2] * move_speed * timeSinceLastFrame
     if pressed_keys[ord('e')]:
         forward = cameraWorldTransform.up
-        cameraLocalTransform.position[0] += forward[0] * moveSpeed * timeSinceLastFrame
-        cameraLocalTransform.position[1] += forward[1] * moveSpeed * timeSinceLastFrame
-        cameraLocalTransform.position[2] += forward[2] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[0] += forward[0] * move_speed * timeSinceLastFrame
+        cameraLocalTransform.position[1] += forward[1] * move_speed * timeSinceLastFrame
+        cameraLocalTransform.position[2] += forward[2] * move_speed * timeSinceLastFrame
     elif pressed_keys[ord('q')]:
         forward = cameraWorldTransform.up
-        cameraLocalTransform.position[0] -= forward[0] * moveSpeed * timeSinceLastFrame
-        cameraLocalTransform.position[1] -= forward[1] * moveSpeed * timeSinceLastFrame
-        cameraLocalTransform.position[2] -= forward[2] * moveSpeed * timeSinceLastFrame
+        cameraLocalTransform.position[0] -= forward[0] * move_speed * timeSinceLastFrame
+        cameraLocalTransform.position[1] -= forward[1] * move_speed * timeSinceLastFrame
+        cameraLocalTransform.position[2] -= forward[2] * move_speed * timeSinceLastFrame
 
     xChange = mouseChange[0]
     yChange = mouseChange[1]
@@ -615,89 +635,125 @@ def updateCamera_freecam(moveSpeed):
     rotate_camera(cameraLocalTransform.up,xChange * -0.001)
     rotate_camera(cameraLocalTransform.get_right(),yChange * 0.001)
 
-def updateCamera_firstPerson_controller(moveSpeed, mouseSensitivity, enableMovement):
+# changing how far the camera can tilt up/down
+def firstPerson_setCameraRestrictions(min_angle, max_angle):
+    global firstPerson_camera_max_dot
+    global firstPerson_camera_min_dot
+
+    firstPerson_camera_max_dot = np.cos(max_angle)
+    firstPerson_camera_min_dot = np.cos(min_angle)
+
+# a built-in first person controller, including jumping
+# ONLY BEEN TESTED WITH A PS5 CONTROLLER!
+def updateCamera_firstPerson_controller(move_speed, mouse_sensitivity, enable_movement, jump_force, joystick_deadband):
     global cameraLocalTransform
     global cameraWorldTransform
     global cameraParent
 
-    global timeSinceLastFrame
+    global timeSinceLastFrame # an attempt to make movement speed constant regardless of framerate
 
+    # these both default to 0.5
+    global firstPerson_camera_max_dot
+    global firstPerson_camera_min_dot
+
+    # no parent, no controller
     if (cameraParent == None):
-        # no parent, no controller
         return
     
-    if (enableMovement):
+    if (enable_movement):
         rawF = cameraWorldTransform.forward
         f = m.normalize_3d(m.subtract_3d(rawF, project_3d(rawF, np.asarray([0.0,1.0,0.0]))))
         r = cameraWorldTransform.get_right()
 
-        joystickY = get_first_joystick_left_y(0.1) * moveSpeed
-        joystickX = get_first_joystick_left_x(0.1) * moveSpeed
+        joystickY = get_first_joystick_left_y(joystick_deadband) * move_speed
+        joystickX = get_first_joystick_left_x(joystick_deadband) * move_speed
         cameraParent.add_local_position(-f[0] * joystickY, -f[1] * joystickY, -f[2] * joystickY)
         cameraParent.add_local_position(r[0] * -joystickX, r[1] * -joystickX, r[2] * -joystickX)
 
+        # jump is the bottom button (cross for PS5)
         if (get_first_joystick_cross()):
             if (cameraParent.is_colliding()):
                 cameraParent.add_local_position(0.0,0.1,0.0)
-                cameraParent.add_velocity(0.0,10.0,0.0)
+                cameraParent.add_velocity(0.0,jump_force,0.0)
 
-    # rotation
+    # rotating the camera ***********************************
     xChange = get_first_joystick_right_x(0.1)
     yChange = get_first_joystick_right_y(0.1)
 
     # you HAVEE to call camera_right() again to deal with the result of the first rotation
     # otherwise, weird things happen that aren't fun
-    rotate_camera(np.asarray([0.0,1.0,0.0]),xChange * -0.001 * mouseSensitivity)
+    rotate_camera(np.asarray([0.0,1.0,0.0]),xChange * -0.001 * mouse_sensitivity)
     
-    newUp = m.rotate_vector_3d(cameraWorldTransform.up, cameraLocalTransform.get_right(),yChange * 0.001 * mouseSensitivity)
+    newUp = m.rotate_vector_3d(cameraWorldTransform.up, cameraLocalTransform.get_right(),yChange * 0.001 * mouse_sensitivity)
 
-    if (m.dot_3d(newUp, np.asarray([0.0,1.0,0.0])) > 0.5):
-        rotate_camera(cameraLocalTransform.get_right(),yChange * 0.001 * mouseSensitivity)
+    # respecting camera tilt restrictions
+    # actually this is looking up, cuz pygame is weird 
+    if (yChange < 0):
+        if (m.dot_3d(newUp, np.asarray([0.0,1.0,0.0])) > firstPerson_camera_max_dot):
+            rotate_camera(cameraLocalTransform.get_right(),yChange * 0.001 * mouse_sensitivity)
+    else: # looking down
+        if (m.dot_3d(newUp, np.asarray([0.0,1.0,0.0])) > firstPerson_camera_min_dot):
+            rotate_camera(cameraLocalTransform.get_right(),yChange * 0.001 * mouse_sensitivity)
+    # ***********************************
 
-def updateCamera_firstPerson(moveSpeed, mouseSensitivity, enableMovement):
+def updateCamera_firstPerson(move_speed, mouse_sensitivity, enable_movement, jump_force):
     global cameraLocalTransform
     global cameraWorldTransform
     global cameraParent
 
-    global timeSinceLastFrame
+    global timeSinceLastFrame # an attempt to make movement speed constant regardless of framerate
+
+    # these both default to 0.5
+    global firstPerson_camera_max_dot
+    global firstPerson_camera_min_dot
 
     if (cameraParent == None):
         # no parent, no controller
         return
     
     # movement 
-    if (enableMovement):
+    if (enable_movement):
         rawF = cameraWorldTransform.forward
         f = m.normalize_3d(m.subtract_3d(rawF, project_3d(rawF, np.asarray([0.0,1.0,0.0]))))
         r = cameraWorldTransform.get_right()
 
         pressed_keys = pg.key.get_pressed()
         if pressed_keys[ord('w')]:
-            cameraParent.add_local_position(f[0] * timeSinceLastFrame * moveSpeed,f[1] * timeSinceLastFrame * moveSpeed,f[2] * timeSinceLastFrame * moveSpeed)
+            cameraParent.add_local_position(f[0] * timeSinceLastFrame * move_speed,f[1] * timeSinceLastFrame * move_speed,f[2] * timeSinceLastFrame * move_speed)
         elif pressed_keys[ord('s')]:
-            cameraParent.add_local_position(-f[0] * timeSinceLastFrame * moveSpeed,-f[1] * timeSinceLastFrame * moveSpeed,-f[2] * timeSinceLastFrame * moveSpeed)
+            cameraParent.add_local_position(-f[0] * timeSinceLastFrame * move_speed,-f[1] * timeSinceLastFrame * move_speed,-f[2] * timeSinceLastFrame * move_speed)
         if pressed_keys[ord('a')]:
-            cameraParent.add_local_position(r[0] * timeSinceLastFrame * moveSpeed,r[1] * timeSinceLastFrame * moveSpeed,r[2] * timeSinceLastFrame * moveSpeed)
+            cameraParent.add_local_position(r[0] * timeSinceLastFrame * move_speed,r[1] * timeSinceLastFrame * move_speed,r[2] * timeSinceLastFrame * move_speed)
         elif pressed_keys[ord('d')]:
-            cameraParent.add_local_position(-r[0] * timeSinceLastFrame * moveSpeed,-r[1] * timeSinceLastFrame * moveSpeed,-r[2] * timeSinceLastFrame * moveSpeed)
+            cameraParent.add_local_position(-r[0] * timeSinceLastFrame * move_speed,-r[1] * timeSinceLastFrame * move_speed,-r[2] * timeSinceLastFrame * move_speed)
 
         if pressed_keys[ord(' ')]:
+            # only allow jumping if the player is colliding
+            # since I'm not checking for specifically the ground it's possible to jump into a ceiling and keep jumping
+            # fingers crossed this doesn't become an issue
             if (cameraParent.is_colliding()):
                 cameraParent.add_local_position(0.0,0.1,0.0)
-                cameraParent.add_velocity(0.0,10.0,0.0)
+                cameraParent.add_velocity(0.0,jump_force,0.0)
 
-    # rotation
+    # rotating the camera ***********************************
     xChange = mouseChange[0]
     yChange = mouseChange[1]
 
     # you HAVEE to call camera_right() again to deal with the result of the first rotation
     # otherwise, weird things happen that aren't fun
-    rotate_camera(np.asarray([0.0,1.0,0.0]),xChange * -0.001 * mouseSensitivity)
+    rotate_camera(np.asarray([0.0,1.0,0.0]),xChange * -0.001 * mouse_sensitivity)
     
-    newUp = m.rotate_vector_3d(cameraWorldTransform.up, cameraLocalTransform.get_right(),yChange * 0.001 * mouseSensitivity)
+    newUp = m.rotate_vector_3d(cameraWorldTransform.up, cameraLocalTransform.get_right(),yChange * 0.001 * mouse_sensitivity)
 
-    if (m.dot_3d(newUp, np.asarray([0.0,1.0,0.0])) > 0.5):
-        rotate_camera(cameraLocalTransform.get_right(),yChange * 0.001 * mouseSensitivity)
+    # respecting camera tilt restrictions
+    # actually this is looking up, cuz pygame is weird 
+    if (yChange < 0):
+        if (m.dot_3d(newUp, np.asarray([0.0,1.0,0.0])) > firstPerson_camera_max_dot):
+            rotate_camera(cameraLocalTransform.get_right(),yChange * 0.001 * mouse_sensitivity)
+    else: # looking down
+        if (m.dot_3d(newUp, np.asarray([0.0,1.0,0.0])) > firstPerson_camera_min_dot):
+            rotate_camera(cameraLocalTransform.get_right(),yChange * 0.001 * mouse_sensitivity)
+    # ***********************************
 
 
 def resetCameraRotation():
@@ -718,7 +774,7 @@ def setBackGroundColor(r,g,b):
 # ********   cube:     ********
 def spawnCube(name, x,y,z, tags):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/cube_no-net.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
+    Model(objName,'pg3d_assets/cube_no-net.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
 
     getObject(objName).set_local_position(x,y,z)
 
@@ -726,7 +782,7 @@ def spawnCube(name, x,y,z, tags):
 
 def spawnScaledCube(name, x,y,z, scale_x,scale_y,scale_z, tags):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/cube.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
+    Model(objName,'pg3d_assets/cube.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
 
     getObject(objName).set_local_position(x,y,z)
     getObject(objName).set_scale(scale_x,scale_y,scale_z)
@@ -735,7 +791,7 @@ def spawnScaledCube(name, x,y,z, scale_x,scale_y,scale_z, tags):
 
 def spawnCubeWithTexture(name, x,y,z, scale_x,scale_y,scale_z, tags, texture_path):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/cube.obj', texture_path,tags, Color.white)
+    Model(objName,'pg3d_assets/cube.obj', texture_path,tags, Color.WHITE)
 
     getObject(objName).set_local_position(x,y,z)
     getObject(objName).set_scale(scale_x,scale_y,scale_z)
@@ -745,14 +801,14 @@ def spawnCubeWithTexture(name, x,y,z, scale_x,scale_y,scale_z, tags, texture_pat
 # ********   plane:     ********
 def spawnPlane(name,x,y,z,tags):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
+    Model(objName,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
 
     getObject(objName).set_local_position(x,y,z)
     return getObject(objName)
 
 def spawnScaledPlane(name,x,y,z,scale_x,scale_y,scale_z,tags):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
+    Model(objName,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
 
     getObject(objName).set_local_position(x,y,z)
     getObject(objName).set_scale(scale_x,scale_y,scale_z)
@@ -761,7 +817,7 @@ def spawnScaledPlane(name,x,y,z,scale_x,scale_y,scale_z,tags):
 
 def spawnPlaneWithTexture(name, x,y,z, scale_x,scale_y,scale_z, tags, texture_path):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/plane.obj', texture_path,tags, Color.white)
+    Model(objName,'pg3d_assets/plane.obj', texture_path,tags, Color.WHITE)
 
     getObject(objName).set_local_position(x,y,z)
     getObject(objName).set_scale(scale_x,scale_y,scale_z)
@@ -771,7 +827,7 @@ def spawnPlaneWithTexture(name, x,y,z, scale_x,scale_y,scale_z, tags, texture_pa
 # ********   sphere:     ********
 def spawnSphere(name,x,y,z,tags):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
+    Model(objName,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
 
     getObject(name).set_local_position(x,y,z)
 
@@ -779,7 +835,7 @@ def spawnSphere(name,x,y,z,tags):
 
 def spawnScaledSphere(name,x,y,z, scale_x,scale_y,scale_z,tags):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.white)
+    Model(objName,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
 
     getObject(objName).set_local_position(x,y,z)
     getObject(objName).set_scale(scale_x,scale_y,scale_z)
@@ -788,7 +844,7 @@ def spawnScaledSphere(name,x,y,z, scale_x,scale_y,scale_z,tags):
 
 def spawnSphereWithTexture(name, x,y,z, scale_x,scale_y,scale_z, tags, texture_path):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/sphere.obj', texture_path,tags, Color.white)
+    Model(objName,'pg3d_assets/sphere.obj', texture_path,tags, Color.WHITE)
 
     getObject(objName).set_local_position(x,y,z)
     getObject(objName).set_scale(scale_x,scale_y,scale_z)

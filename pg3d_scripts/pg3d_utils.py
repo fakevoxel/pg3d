@@ -2,6 +2,7 @@ import numpy as np
 import random
 
 # generates a string of random number characters of a given length
+# used for particle system hashcodes, but those were removed so its just here now
 def random_number_string(length):
     toReturn = ""
 
@@ -12,6 +13,8 @@ def random_number_string(length):
 
 # ********  MESH helpers:       ********
 
+# there's something weird going on here with the winding order of triangles
+# I'm not complaining bc it works, but its still weird
 def read_obj(fileName):
     '''
     Read wavefront models with or without textures, supports triangles and quads (turned into triangles)

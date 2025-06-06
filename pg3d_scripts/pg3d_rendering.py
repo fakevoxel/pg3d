@@ -378,65 +378,79 @@ def draw_triangle(sW, sH, frame, z_buffer, texture, proj_points, uv_points, minX
             dotbc = bpx * (proj_points[2][7] - proj_points[1][7]) + bpy * -(proj_points[2][6] - proj_points[1][6])
             dotca = cpx * (proj_points[0][7] - proj_points[2][7]) + cpy * -(proj_points[0][6] - proj_points[2][6])
 
-            # line segments: 0 -> 1,    1 -> 2,        2 -> 0
-            if ((dotab >= 0) and (dotbc >= 0) and (dotca >= 0)):
-                inTriangle = True
+            if (renderMode == "wireframe"):
+                if ((np.abs(dotab) < 10) and ((dotbc >= 0) and (dotca >= 0))):
+                    frame[x, y] = renderColor * 255
+                elif ((np.abs(dotbc) < 10) and ((dotab >= 0) and (dotca >= 0))):
+                    frame[x, y] = renderColor * 255
+                elif ((np.abs(dotca) < 10) and ((dotab >= 0) and (dotbc >= 0))):
+                    frame[x, y] = renderColor * 255
+                elif ((np.abs(dotab) < 10) and ((dotbc <= 0) and (dotca <= 0))):
+                    frame[x, y] = renderColor * 255
+                elif ((np.abs(dotbc) < 10) and ((dotab <= 0) and (dotca <= 0))):
+                    frame[x, y] = renderColor * 255
+                elif ((np.abs(dotca) < 10) and ((dotab <= 0) and (dotbc <= 0))):
+                    frame[x, y] = renderColor * 255
             else:
-                inTriangle = False
-
-            if (not cullBack):
-                if ((dotab <= 0) and (dotbc <= 0) and (dotca <= 0)):
+                # line segments: 0 -> 1,    1 -> 2,        2 -> 0
+                if ((dotab >= 0) and (dotbc >= 0) and (dotca >= 0)):
                     inTriangle = True
-                    dotab *= -1
-                    dotbc *= -1
-                    dotca *= -1
-
-            if (inTriangle):
-                a0 = dotbc / 2
-                a1 = dotca / 2
-                a2 = dotab / 2
-                
-                sum = (a0 + a1 + a2)
-                if (sum > 0):
-                    invAreaSum = 1 / (a0 + a1 + a2)
-                    w0 = a0 * invAreaSum
-                    w1 = a1 * invAreaSum
-                    w2 = a2 * invAreaSum
                 else:
-                    w0 = 1
-                    w1 = 0
-                    w2 = 0  
+                    inTriangle = False
 
-                # sinze z0,z1, and z2 are all 1/z at some point, this value will also be 1 / z
-                z = w0*z0 + w1*z1 + w2*z2
-                u = ((w0*uv_points[0][0] + w1*uv_points[1][0] + w2*uv_points[2][0])*(1/z + 0.0001))
-                v = ((w0*uv_points[0][1] + w1*uv_points[1][1] + w2*uv_points[2][1])*(1/z + 0.0001))
+                if (not cullBack):
+                    if ((dotab <= 0) and (dotbc <= 0) and (dotca <= 0)):
+                        inTriangle = True
+                        dotab *= -1
+                        dotbc *= -1
+                        dotca *= -1
 
-                # z needs to be greater than the value at the z buffer, meaning 1 / z needs to be less
-                # also make sure the u and v coords are valid, they need to be [0..1]
-                if z > z_buffer[x, y] and min(u,v) >= 0 and max(u,v) <= 1:
-                    # showing the u and v coords as a color, not the actual texture just yet
-                    if (renderMode == "states"):
-                        frame[x, y] = renderColor
+                if (inTriangle):
+                    a0 = dotbc / 2
+                    a1 = dotca / 2
+                    a2 = dotab / 2
+                    
+                    sum = (a0 + a1 + a2)
+                    if (sum > 0):
+                        invAreaSum = 1 / (a0 + a1 + a2)
+                        w0 = a0 * invAreaSum
+                        w1 = a1 * invAreaSum
+                        w2 = a2 * invAreaSum
+                    else:
+                        w0 = 1
+                        w1 = 0
+                        w2 = 0  
 
-                        # z buffer stores values of 1 / z
-                        z_buffer[x, y] = z
-                    elif (renderMode == "uv"):
-                        frame[x, y] = np.asarray([u*255,v*255,0]).astype('uint8')
+                    # sinze z0,z1, and z2 are all 1/z at some point, this value will also be 1 / z
+                    z = w0*z0 + w1*z1 + w2*z2
+                    u = ((w0*uv_points[0][0] + w1*uv_points[1][0] + w2*uv_points[2][0])*(1/z + 0.0001))
+                    v = ((w0*uv_points[0][1] + w1*uv_points[1][1] + w2*uv_points[2][1])*(1/z + 0.0001))
 
-                        # z buffer stores values of 1 / z
-                        z_buffer[x, y] = z
-                    elif (renderMode == "texture"):
-                        pixelColor = texture[int(u*text_size[0] + 1)][int(v*text_size[1])]
-                        # ALL objects in the scene are rendered using alpha-clip, so if there's no color it's transparent
-                        if (textureType == 1):
-                            if (pixelColor[0] > 0 or pixelColor[1] > 0 or pixelColor[2] > 0):
+                    # z needs to be greater than the value at the z buffer, meaning 1 / z needs to be less
+                    # also make sure the u and v coords are valid, they need to be [0..1]
+                    if z > z_buffer[x, y] and min(u,v) >= 0 and max(u,v) <= 1:
+                        # showing the u and v coords as a color, not the actual texture just yet
+                        if (renderMode == "states"):
+                            frame[x, y] = renderColor * 255
+
+                            # z buffer stores values of 1 / z
+                            z_buffer[x, y] = z
+                        elif (renderMode == "uv"):
+                            frame[x, y] = np.asarray([u*255,v*255,0]).astype('uint8')
+
+                            # z buffer stores values of 1 / z
+                            z_buffer[x, y] = z
+                        elif (renderMode == "texture"):
+                            pixelColor = texture[int(u*text_size[0] + 1)][int(v*text_size[1])]
+                            # ALL objects in the scene are rendered using alpha-clip, so if there's no color it's transparent
+                            if (textureType == 1):
+                                if (pixelColor[0] > 0 or pixelColor[1] > 0 or pixelColor[2] > 0):
+                                    frame[x, y] = pixelColor * color
+
+                                    # z buffer stores values of 1 / z
+                                    z_buffer[x, y] = z
+                            else:
                                 frame[x, y] = pixelColor * color
 
-                                # z buffer stores values of 1 / z
-                                z_buffer[x, y] = z
-                        else:
-                            frame[x, y] = pixelColor * color
-
-                        # z buffer stores values of 1 / z
-                        z_buffer[x, y] = z
+                            # z buffer stores values of 1 / z
+                            z_buffer[x, y] = z

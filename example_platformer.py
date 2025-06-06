@@ -14,6 +14,8 @@ def main():
 
     ping_sound = pg.mixer.Sound('ping.wav')
 
+    engine.setRenderingMode("wireframe")
+
     engine.setBackgroundMode("skybox")
     # You can change the background color of the game with this function:
     engine.setBackGroundColor(0,100,200)
@@ -28,11 +30,11 @@ def main():
     # spawning a row of platforms
     platformCount = 5
     for i in range(platformCount):
-        engine.spawnObjectWithTexture('3d models/platform/platform.obj','3d models/platform/platform_texture.png',"platform" + str(i+1), 0.0 + i * 15,0.0,0.0, [], Color.green)
+        engine.spawnObjectWithTexture('3d models/platform/platform.obj','3d models/platform/platform_texture.png',"platform" + str(i+1), 0.0 + i * 15,0.0,0.0, [], Color.GREEN)
         engine.getObject("platform" + str(i+1)).add_box_collider(10.0,1.0,10.0)
         engine.getObject("platform" + str(i+1)).set_scale(5.0,1.0,5.0)
 
-    engine.spawnObjectWithTexture('3d models/coin/coin.obj','3d models/coin/coin_texture.png',"coin", 0.0 + 15 * 4,2.0,0.0, [], Color.white)
+    engine.spawnObjectWithTexture('3d models/coin/coin.obj','3d models/coin/coin_texture.png',"coin", 0.0 + 15 * 4,2.0,0.0, [], Color.WHITE)
     engine.getObject("coin").set_scale(2,2,2)
     # add a trigger so that we can detect when the coin is picked up
     engine.getObject("coin").add_box_trigger(2.0,2.0,2.0)
@@ -85,7 +87,7 @@ def main():
         # A lot of games use a first person camera controller, so PG3D has that as a built-in feature.
         # All you have to do is parent the camera to an object (the object represents the player) which we did above,
         # and then call updateCamera_firstPerson() to handle movement and all that.
-        engine.updateCamera_firstPerson(10, 1, True)
+        engine.updateCamera_firstPerson(10, 1, True, 10)
 
     engine.quit()
 
