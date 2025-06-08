@@ -782,82 +782,82 @@ def setBackGroundColor(r,g,b):
 # ********   cube:     ********
 def spawnCube(name, x,y,z, tags):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/cube_no-net.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
+    newObj = Model(objName,'pg3d_assets/cube_no-net.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
 
-    getObject(objName).set_local_position(x,y,z)
+    newObj.set_local_position(x,y,z)
 
-    return getObject(objName)
+    return newObj
 
 def spawnScaledCube(name, x,y,z, scale_x,scale_y,scale_z, tags):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/cube.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
+    newObj = Model(objName,'pg3d_assets/cube.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
 
-    getObject(objName).set_local_position(x,y,z)
-    getObject(objName).set_scale(scale_x,scale_y,scale_z)
+    newObj.set_local_position(x,y,z)
+    newObj.set_scale(scale_x,scale_y,scale_z)
 
-    return getObject(objName)
+    return newObj
 
 def spawnCubeWithTexture(name, x,y,z, scale_x,scale_y,scale_z, tags, texture_path):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/cube.obj', texture_path,tags, Color.WHITE)
+    newObj = Model(objName,'pg3d_assets/cube.obj', texture_path,tags, Color.WHITE)
 
-    getObject(objName).set_local_position(x,y,z)
-    getObject(objName).set_scale(scale_x,scale_y,scale_z)
+    newObj.set_local_position(x,y,z)
+    newObj.set_scale(scale_x,scale_y,scale_z)
 
-    return getObject(objName)
+    return newObj
 
 # ********   plane:     ********
 def spawnPlane(name,x,y,z,tags):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
+    newObj = Model(objName,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
 
-    getObject(objName).set_local_position(x,y,z)
-    return getObject(objName)
+    newObj.set_local_position(x,y,z)
+    return newObj
 
 def spawnScaledPlane(name,x,y,z,scale_x,scale_y,scale_z,tags):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
+    newObj = Model(objName,'pg3d_assets/plane.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
 
-    getObject(objName).set_local_position(x,y,z)
-    getObject(objName).set_scale(scale_x,scale_y,scale_z)
+    newObj.set_local_position(x,y,z)
+    newObj.set_scale(scale_x,scale_y,scale_z)
 
-    return getObject(objName)
+    return newObj
 
 def spawnPlaneWithTexture(name, x,y,z, scale_x,scale_y,scale_z, tags, texture_path):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/plane.obj', texture_path,tags, Color.WHITE)
+    newObj = Model(objName,'pg3d_assets/plane.obj', texture_path,tags, Color.WHITE)
 
-    getObject(objName).set_local_position(x,y,z)
-    getObject(objName).set_scale(scale_x,scale_y,scale_z)
+    newObj.set_local_position(x,y,z)
+    newObj.set_scale(scale_x,scale_y,scale_z)
 
-    return getObject(objName)
+    return newObj
 
 # ********   sphere:     ********
 def spawnSphere(name,x,y,z,tags):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
+    newObj = Model(objName,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
 
-    getObject(name).set_local_position(x,y,z)
+    newObj.set_local_position(x,y,z)
 
-    return getObject(objName)
+    return newObj
 
 def spawnScaledSphere(name,x,y,z, scale_x,scale_y,scale_z,tags):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
+    newObj = Model(objName,'pg3d_assets/sphere.obj', 'pg3d_assets/grid_16.png',tags, Color.WHITE)
 
-    getObject(objName).set_local_position(x,y,z)
-    getObject(objName).set_scale(scale_x,scale_y,scale_z)
+    newObj.set_local_position(x,y,z)
+    newObj.set_scale(scale_x,scale_y,scale_z)
 
-    return getObject(objName)
+    return newObj
 
 def spawnSphereWithTexture(name, x,y,z, scale_x,scale_y,scale_z, tags, texture_path):
     objName = nameModel(name)
-    Model(objName,'pg3d_assets/sphere.obj', texture_path,tags, Color.WHITE)
+    newObj = Model(objName,'pg3d_assets/sphere.obj', texture_path,tags, Color.WHITE)
 
-    getObject(objName).set_local_position(x,y,z)
-    getObject(objName).set_scale(scale_x,scale_y,scale_z)
+    newObj.set_local_position(x,y,z)
+    newObj.set_scale(scale_x,scale_y,scale_z)
 
-    return getObject(objName)
+    return newObj
 
 def getObjectIndex(name):
     counter = 0
@@ -920,7 +920,7 @@ def spawnObjectWithTexture(objPath, texturePath, name, x, y, z, tags, color):
     name = nameModel(name)
     newObj = Model(name,objPath, texturePath,tags,color)
 
-    getObject(name).set_local_position(x,y,z)
+    newObj.set_local_position(x,y,z)
 
     return newObj
 
@@ -930,8 +930,8 @@ def spawnScaledObjectWithTexture(objPath, texturePath, name, x, y, z, scale_x, s
     name = nameModel(name)
     newObj = Model(name,objPath, texturePath,tags,color)
 
-    getObject(name).set_local_position(x,y,z)
-    getObject(name).set_scale(scale_x,scale_y,scale_z)
+    newObj.set_local_position(x,y,z)
+    newObj.set_scale(scale_x,scale_y,scale_z)
 
     return newObj
 
@@ -941,7 +941,7 @@ def spawnObjectWithTexture(objPath, texturePath, name, x, y, z, tags, color):
     name = nameModel(name)
     newObj = Model(name,objPath, texturePath,tags,color)
 
-    getObject(name).set_local_position(x,y,z)
+    newObj.set_local_position(x,y,z)
 
     return newObj
 
@@ -951,7 +951,7 @@ def spawnObjectWithColor(objPath, name, x, y, z, tags, colorR, colorG, colorB):
     name = nameModel(name)
     newObj = Model(name,objPath, '',tags,np.asarray([colorR,colorG,colorB]).astype('uint8'))
 
-    getObject(name).set_local_position(x,y,z)
+    newObj.set_local_position(x,y,z)
 
     return newObj
 
