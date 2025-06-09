@@ -14,7 +14,7 @@ from .pg3d_particle import ParticleManager
 # just to keep track of things, not actually used in code
 version = "0.4.1"
 
-# this is the default sky color, but can be set using setSkyColor()
+# this is the default sky color, but can be set using setBackgroundColor()
 skyColor = np.asarray([1.0,1.0,1.0])
 
 # mouse shennanigans

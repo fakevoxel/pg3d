@@ -14,7 +14,7 @@ def main():
 
     ping_sound = pg.mixer.Sound('ping.wav')
 
-    engine.setRenderingMode("wireframe")
+   # engine.setRenderingMode("wireframe")
 
     engine.setBackgroundMode("skybox")
     # You can change the background color of the game with this function:
