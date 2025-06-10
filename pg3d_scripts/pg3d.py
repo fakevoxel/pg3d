@@ -914,6 +914,12 @@ def destroyObject(obj):
     if (cameraParent.name == obj.name):
         cameraParent = None
 
+def destroyAllObjects():
+    for i in range(Model._registry):
+        # this function should deal with all parent/camera parent stuff
+        # aka making sure we don't leave any null references
+        destroyObject(i)
+
 def spawnObjectWithTexture(objPath, texturePath, name, x, y, z, tags, color):
     if (getFirstIndex(name, '(') < len(name)): # object names may NOT have parentheses!
         return
