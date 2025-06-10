@@ -380,6 +380,25 @@ class Model:
             
         return False
     
+    def get_triggered_objects_sphere_only(self):
+        possibleObjects = engine.getObjectsWithTag("interact")
+
+        actualObjects = []
+
+        for i in possibleObjects:
+            if (not i.shouldBePhysics):
+                    continue
+                
+            # as said above, we're only checking objects that have sphere triggers on them
+            # if the object doesn't have this tag, it doesn't have a sphere collider
+            if (not m.array_has_item(i.tags, "sphere_trigger")):
+                continue
+            
+            if (m.length_3d(i.getMidpointAsVector() - self.getMidpointAsVector()) < self.data["trigger_bounds"] + i.data["trigger_bounds"]):
+                actualObjects.append(i)
+        
+        return actualObjects
+    
     # ****************************************************************************************
 
     def add_box_collider(self,boundsX,boundsY,boundsZ):
