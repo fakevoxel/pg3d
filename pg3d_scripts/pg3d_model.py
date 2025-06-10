@@ -474,13 +474,15 @@ class Model:
         newForward = m.rotate_vector_3d(self.localTransform.forward, axis, angle)
         newUp = m.rotate_vector_3d(self.localTransform.up, axis, angle)
 
-        self.localTransform.forward[0] = newForward[0]
-        self.localTransform.forward[1] = newForward[1]
-        self.localTransform.forward[2] = newForward[2]
+        if (np.abs(newForward[0]) > 0 and np.abs(newForward[1]) > 0 and np.abs(newForward[2]) > 0):
+            self.localTransform.forward[0] = newForward[0]
+            self.localTransform.forward[1] = newForward[1]
+            self.localTransform.forward[2] = newForward[2]
 
-        self.localTransform.up[0] = newUp[0]
-        self.localTransform.up[1] = newUp[1]
-        self.localTransform.up[2] = newUp[2]
+        if (np.abs(newUp[0]) > 0 and np.abs(newUp[1]) > 0 and np.abs(newUp[2]) > 0):
+            self.localTransform.up[0] = newUp[0]
+            self.localTransform.up[1] = newUp[1]
+            self.localTransform.up[2] = newUp[2]
 
         self.syncTransformWithParent() # refreshing the world transform
         self.syncChildren()
