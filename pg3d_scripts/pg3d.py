@@ -920,6 +920,19 @@ def destroyAllObjects():
         # aka making sure we don't leave any null references
         destroyObject(i)
 
+def destroyAllObjectsWithTag(tag):
+    for i in range(Model._registry):
+        if (i.hasTag(tag)):
+            # this function should deal with all parent/camera parent stuff
+            # aka making sure we don't leave any null references
+            destroyObject(i)
+
+# this should be changed to not use names
+def destroyAllObjectsInLevel(levelName):
+    levelData = getLevel(levelName)
+    for i in levelData.objectNames:
+        destroyObjectWithName(i)
+
 def spawnObjectWithTexture(objPath, texturePath, name, x, y, z, tags, color):
     if (getFirstIndex(name, '(') < len(name)): # object names may NOT have parentheses!
         return
@@ -1304,7 +1317,7 @@ class Vector3:
     # ************************************************************
 
     def new(x,y,z):
-        return np.asarray(x,y,z)
+        return np.asarray([x,y,z])
 class Vector2:
     # unity-like naming convention ************************************************************
     ONE = np.asarray([1.0,1.0])
@@ -1329,7 +1342,7 @@ class Vector2:
     # ************************************************************
 
     def new(x,y):
-        return np.asarray(x,y) 
+        return np.asarray([x,y]) 
     
 # I'm not implementing full object heirarchy (because of the transformation issues that that causes)
 # instead, objects are grouped into levels
