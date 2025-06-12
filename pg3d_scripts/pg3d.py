@@ -560,6 +560,8 @@ def drawScreen(frame):
     surf = pg.transform.scale(pg.surfarray.make_surface(frame),(pg3d_rendering.renderConfig.screenWidth_actual,pg3d_rendering.renderConfig.screenHeight_actual))
     # blit that (draw it) onto the screen
     pg.display.get_surface().blit(surf, (0,0))
+    
+def update_display():
     pg.display.update()
 
 def quit():
@@ -915,17 +917,21 @@ def destroyObject(obj):
         cameraParent = None
 
 def destroyAllObjects():
-    for i in range(Model._registry):
+    length = len(Model._registry)
+    for i in range(length):
+        j = Model._registry[length - 1 - i]
         # this function should deal with all parent/camera parent stuff
         # aka making sure we don't leave any null references
-        destroyObject(i)
+        destroyObject(j)
 
 def destroyAllObjectsWithTag(tag):
-    for i in range(Model._registry):
-        if (i.hasTag(tag)):
+    length = len(Model._registry)
+    for i in range(length):
+        j = Model._registry[length - 1 - i]
+        if (j.hasTag(tag)):
             # this function should deal with all parent/camera parent stuff
             # aka making sure we don't leave any null references
-            destroyObject(i)
+            destroyObject(j)
 
 # this should be changed to not use names
 def destroyAllObjectsInLevel(levelName):
@@ -1047,6 +1053,27 @@ def draw_circle(frameArray, xPos, yPos, radius, color):
                 frameArray[x,y] = color.astype('uint8')
 
     return frameArray
+
+# pygame has built-in text rendering, 
+# but the advantage here is that it syncs with the display resolution
+
+# so that way, you don't get high-res fonts with a low-res display which would look weird
+# it's style, that's it
+def draw_text(xPos, yPos, color, text_string):
+    xOffset = 0
+
+    for i in text_string:
+        rawImg = pg.image.load("pg3d_assets/font/" + i + "_l" + ".png")
+
+        w = rawImg.get_width()
+        h = rawImg.get_height()
+
+        xOffset += w*4 + 10
+
+        letterImg = pg.transform.scale(rawImg, (w*4, h*4))
+
+        pg.display.get_surface().blit(letterImg, (xPos + xOffset,yPos))
+
 
 # ********  drawing functions! (the annoying stuff)       ********  
 

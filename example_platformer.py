@@ -58,6 +58,8 @@ def main():
     while running:
         frame = engine.getFrame()
         engine.drawScreen(frame)
+        engine.draw_text(400,300,Color.WHITE,"hey")
+        engine.update_display()
 
         playerObj = engine.getObject("cube")
 
