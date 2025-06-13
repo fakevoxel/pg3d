@@ -57,8 +57,8 @@ def main():
     running = True
     while running:
         frame = engine.getFrame()
+        engine.draw_text(frame, "hey ++[] ()", 0,125,Color.WHITE,1, 1)
         engine.drawScreen(frame)
-        engine.draw_text(400,300,Color.WHITE,"hey")
         engine.update_display()
 
         playerObj = engine.getObject("cube")

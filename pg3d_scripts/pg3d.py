@@ -1059,21 +1059,72 @@ def draw_circle(frameArray, xPos, yPos, radius, color):
 
 # so that way, you don't get high-res fonts with a low-res display which would look weird
 # it's style, that's it
-def draw_text(xPos, yPos, color, text_string):
+# def draw_text(xPos, yPos, color, text_string):
+#     xOffset = 0
+
+#     for i in text_string:
+#         rawImg = pg.image.load("pg3d_assets/font/" + i + "_l" + ".png")
+
+#         w = rawImg.get_width()
+#         h = rawImg.get_height()
+
+#         xOffset += w*4 + 10
+
+#         letterImg = pg.transform.scale(rawImg, (w*4, h*4))
+
+#         pg.display.get_surface().blit(letterImg, (xPos + xOffset,yPos))
+
+# this version messes with the frame array directly
+# is it slow? yeah, but it can handle colors
+def draw_text(frameArray, text_string, xPos, yPos, color, scale, spacing):
     xOffset = 0
 
     for i in text_string:
-        rawImg = pg.image.load("pg3d_assets/font/" + i + "_l" + ".png")
+        rawImg = pg.image.load("pg3d_assets/font/" + get_character_file_name(i) + ".png")
 
         w = rawImg.get_width()
         h = rawImg.get_height()
 
-        xOffset += w*4 + 10
+        # making a blank image
+        text_texture = np.zeros((w * scale, h * scale, 3)).astype('uint8')
+        # copying the data from the text file to the array
+        pg.surfarray.surface_to_array(text_texture, pg.transform.scale(rawImg, (w * scale, h * scale)))
 
-        letterImg = pg.transform.scale(rawImg, (w*4, h*4))
+        xOffset += w * scale + spacing
 
-        pg.display.get_surface().blit(letterImg, (xPos + xOffset,yPos))
+        for i in range(w*scale):
+            for j in range(h*scale):
+                if (text_texture[i,j][0] > 0):
+                    frameArray[xPos + xOffset + i,yPos + j] = color
 
+    return frameArray
+
+def get_character_file_name(character):
+    if (character == "1" or character == "2" or character == "3" or character == "4" or character == "5" or character == "6" or character == "7" or character == "8" or character == "9" or character == "0"):
+        return character
+    elif (character == "["):
+        return "o_bracket"
+    elif (character == "]"):
+        return "c_bracket"
+    elif (character == "("):
+        return "o_parenthese"
+    elif (character == ")"):
+        return "c_parenthese"
+    elif (character == "!"):
+        return "exclamation"
+    elif (character == "+"):
+        return "plus"
+    elif (character == "-"):
+        return "subtract"
+    elif (character == "*"):
+        return "multiply"
+    elif (character == "/"):
+        return "divide"
+    elif (character == " "):
+        return "space"
+    # no slash characters for now
+    else:
+        return character + "_l"
 
 # ********  drawing functions! (the annoying stuff)       ********  
 
