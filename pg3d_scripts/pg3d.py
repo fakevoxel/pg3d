@@ -1079,8 +1079,8 @@ def draw_circle(frameArray, xPos, yPos, radius, color):
 def draw_text(frameArray, text_string, xPos, yPos, color, scale, spacing):
     xOffset = 0
 
-    for i in text_string:
-        rawImg = pg.image.load("pg3d_assets/font/" + get_character_file_name(i) + ".png")
+    for k in text_string:
+        rawImg = pg.image.load("pg3d_assets/font/" + get_character_file_name(k) + ".png")
 
         w = rawImg.get_width()
         h = rawImg.get_height()
@@ -1090,12 +1090,12 @@ def draw_text(frameArray, text_string, xPos, yPos, color, scale, spacing):
         # copying the data from the text file to the array
         pg.surfarray.surface_to_array(text_texture, pg.transform.scale(rawImg, (w * scale, h * scale)))
 
+        for i in range(int(w*scale)):
+            for j in range(int(h*scale)):
+                if (text_texture[int(i/scale),int(j/scale)][0] > 0):
+                    frameArray[int(xPos) + int(xOffset) + i, int(yPos) + j] = Color.RED
+        
         xOffset += w * scale + spacing
-
-        for i in range(w*scale):
-            for j in range(h*scale):
-                if (text_texture[i,j][0] > 0):
-                    frameArray[xPos + xOffset + i,yPos + j] = color
 
     return frameArray
 
@@ -1120,8 +1120,12 @@ def get_character_file_name(character):
         return "multiply"
     elif (character == "/"):
         return "divide"
+    elif (character == ":"):
+        return "colon"
     elif (character == " "):
         return "space"
+    elif (character == "."):
+        return "period"
     # no slash characters for now
     else:
         return character + "_l"
@@ -1354,6 +1358,8 @@ class Color:
 
     ORANGE_01 = np.asarray([1,0.592156862745098,0.1882352941176471]).astype('float32')
 
+    BLACK_01 = np.asarray([0.0,0.0,0.0]).astype('float32')
+
     WHITE = np.asarray([255,255,255]).astype('uint8')
 
     RED = np.asarray([255,0,0]).astype('uint8')
@@ -1363,6 +1369,8 @@ class Color:
     YELLOW = np.asarray([255,255,0]).astype('uint8')
     MAGENTA = np.asarray([255,0,255]).astype('uint8')
     CYAN = np.asarray([0,255,255]).astype('uint8')
+
+    BLACK = np.asarray([0,0,0]).astype('uint8')
 
 # helpers, so you don't have to write stuff like np.asarray([])
 # like colors, these are constants, because they dont ever change
