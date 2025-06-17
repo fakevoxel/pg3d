@@ -34,6 +34,13 @@ def main():
         engine.getObject("platform" + str(i+1)).add_box_collider(10.0,1.0,10.0)
         engine.getObject("platform" + str(i+1)).set_scale(5.0,1.0,5.0)
 
+    # vertical wall to test collisions
+    engine.spawnObjectWithTexture('3d models/platform/platform.obj','3d models/platform/platform_texture.png',"platform" + str(6), 0.0 + i * 15,0.0,0.0, [], Color.GREEN)
+    engine.getObject("platform" + str(6)).add_box_collider(10.0,1.0,10.0)
+    engine.getObject("platform" + str(6)).set_scale(5.0,1.0,5.0)
+
+    engine.getObject("platform" + str(6)).rotate(np.pi / 2, np.asarray([0,0,1]))
+
     engine.spawnObjectWithTexture('3d models/coin/coin.obj','3d models/coin/coin_texture.png',"coin", 0.0 + 15 * 4,2.0,0.0, [], Color.WHITE)
     engine.getObject("coin").set_scale(2,2,2)
     # add a trigger so that we can detect when the coin is picked up

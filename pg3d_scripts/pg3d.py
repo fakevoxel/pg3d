@@ -462,8 +462,18 @@ def update():
                 if (m.length_3d(m.subtract_3d(closestPointOnOther, closestPointOnThis)) < 0.01):
                     # this code only runs if the two points are the same (which happens if there's an intersection)
 
+                    # the physics implementation is, well, lackluster here
+                    # what I SHOULD be doing is using the surface normal to resolve the collision
+                    # what I'm actually doing is using the vector from the contact point to the midpoint
+                    # I'm leaving this for now, but 
+                    #TODO: make a function to calculate surface normal for collisions
+                    # also TODO: fix all of the trigger collider nonsense
+
+                    # get the normal of the surface
+                    #normal = j.get_box_normal(closestPointOnOther)
+
                     # figuring out where the closestPointOnThis should be, basically
-                    pushVector = np.asarray([0.0,-1.0,0.0])
+                    pushVector = closestPointOnThis - worldSpaceMidpoint
                     desiredPoint = i.closest_point(np.asarray([closestPointOnThis[0] + pushVector[0] * 100,closestPointOnThis[1] + pushVector[1] * 100,closestPointOnThis[2] + pushVector[2] * 100]))
 
                     # resolve the collision (hopefully) 
