@@ -438,84 +438,85 @@ def update():
                 # 1d. move this object AWAY so that the closest point on this collider is the closest point on that collider
                 # TODO: torque
 
-            collidersInScene = getObjectsWithTag("box_collider")
-            sphereCollidersInScene = getObjectsWithTag("sphere_collider")
-
             # this comes out as a point (x,y,z) (x transformed, y transformed, z transformed)
             # it's in world space!
             returnMidpoint = i.midpoint()
             worldSpaceMidpoint = np.asarray([returnMidpoint[3],returnMidpoint[4],returnMidpoint[5]])
 
-            for j in collidersInScene:
+            if (i.hasTag("box_collider")):
+                collidersInScene = getObjectsWithTag("box_collider")
+                for j in collidersInScene:
 
-                # don't do anything if talking about the same object
-                if (j.name == i.name):
-                    continue
+                    # don't do anything if talking about the same object
+                    if (j.name == i.name):
+                        continue
 
-                if (not j.shouldBePhysics):
-                    continue
+                    if (not j.shouldBePhysics):
+                        continue
 
-                closestPointOnOther = j.closest_point(worldSpaceMidpoint)
+                    closestPointOnOther = j.closest_point(worldSpaceMidpoint)
 
-                closestPointOnThis = i.closest_point(closestPointOnOther)
+                    closestPointOnThis = i.closest_point(closestPointOnOther)
 
-                if (m.length_3d(m.subtract_3d(closestPointOnOther, closestPointOnThis)) < 0.01):
-                    # this code only runs if the two points are the same (which happens if there's an intersection)
+                    if (m.length_3d(m.subtract_3d(closestPointOnOther, closestPointOnThis)) < 0.01):
+                        # this code only runs if the two points are the same (which happens if there's an intersection)
 
-                    # the physics implementation is, well, lackluster here
-                    # what I SHOULD be doing is using the surface normal to resolve the collision
-                    # what I'm actually doing is using the vector from the contact point to the midpoint
-                    # I'm leaving this for now, but 
-                    #TODO: make a function to calculate surface normal for collisions
-                    # also TODO: fix all of the trigger collider nonsense
+                        # the physics implementation is, well, lackluster here
+                        # what I SHOULD be doing is using the surface normal to resolve the collision
+                        # what I'm actually doing is using the vector from the contact point to the midpoint
+                        # I'm leaving this for now, but 
+                        #TODO: make a function to calculate surface normal for collisions
+                        # also TODO: fix all of the trigger collider nonsense
 
-                    # get the normal of the surface
-                    #normal = j.get_box_normal(closestPointOnOther)
+                        # get the normal of the surface
+                        #normal = j.get_box_normal(closestPointOnOther)
 
-                    # figuring out where the closestPointOnThis should be, basically
-                    pushVector = closestPointOnThis - worldSpaceMidpoint
-                    desiredPoint = i.closest_point(np.asarray([closestPointOnThis[0] + pushVector[0] * 100,closestPointOnThis[1] + pushVector[1] * 100,closestPointOnThis[2] + pushVector[2] * 100]))
+                        # figuring out where the closestPointOnThis should be, basically
+                        pushVector = closestPointOnThis - worldSpaceMidpoint
+                        desiredPoint = i.closest_point(np.asarray([closestPointOnThis[0] + pushVector[0] * 100,closestPointOnThis[1] + pushVector[1] * 100,closestPointOnThis[2] + pushVector[2] * 100]))
 
-                    # resolve the collision (hopefully) 
-                    # (we're only moving the object, not what it's hitting, for now)
+                        # resolve the collision (hopefully) 
+                        # (we're only moving the object, not what it's hitting, for now)
 
-                    # turns out, this isn't an amazing solution
-                    # gotta implement raycasting before I can rlly solve this properly
-                    # fortunately, it's enough for a platformer game
-                    i.add_local_position(closestPointOnThis[0] - desiredPoint[0],closestPointOnThis[1] - desiredPoint[1],closestPointOnThis[2] - desiredPoint[2])
+                        # turns out, this isn't an amazing solution
+                        # gotta implement raycasting before I can rlly solve this properly
+                        # fortunately, it's enough for a platformer game
+                        i.add_local_position(closestPointOnThis[0] - desiredPoint[0],closestPointOnThis[1] - desiredPoint[1],closestPointOnThis[2] - desiredPoint[2])
 
-                    # not a great permanent solution, but make the velocity 0 to make sure the collision stays resolved
-                    i.set_velocity(0,0,0)
+                        # not a great permanent solution, but make the velocity 0 to make sure the collision stays resolved
+                        i.set_velocity(0,0,0)
+            
+            if (i.hasTag("sphere_collider")):
+                sphereCollidersInScene = getObjectsWithTag("sphere_collider")
+                # for sphere colliders
+                for j in sphereCollidersInScene:
+                    # don't do anything if talking about the same object
+                    if (j.name == i.name):
+                        continue
+                        
+                    if (not j.shouldBePhysics): # colliddr isn't participating in interactions
+                        continue
 
-            # for sphere colliders
-            for j in sphereCollidersInScene:
-                # don't do anything if talking about the same object
-                if (j.name == i.name):
-                    continue
-                    
-                if (not j.shouldBePhysics): # colliddr isn't participating in interactions
-                    continue
+                    # testing for an intersection is wayyy simpler, just a length check
+                    # (the whole point of sphere colliders is that they're easier to compute btw)
 
-                # testing for an intersection is wayyy simpler, just a length check
-                # (the whole point of sphere colliders is that they're easier to compute btw)
+                    mp = j.midpoint()
+                    otherMidpoint = np.asarray([mp[3],mp[4],mp[5]])
 
-                mp = j.midpoint()
-                otherMidpoint = np.asarray([mp[3],mp[4],mp[5]])
+                    distBetween = m.length_3d(worldSpaceMidpoint - otherMidpoint)
 
-                distBetween = m.length_3d(worldSpaceMidpoint - otherMidpoint)
+                    localRadius = i.data["collider_bounds"]
+                    otherRadius = j.data["collider_bounds"]
 
-                localRadius = i.data["collider_bounds"]
-                otherRadius = j.data["collider_bounds"]
+                    rSum = otherRadius + localRadius
 
-                rSum = otherRadius + localRadius
+                    if (distBetween < rSum):
+                        # there is an intersection!
+                        pushVector = m.normalize_3d(worldSpaceMidpoint - otherMidpoint)
 
-                if (distBetween < rSum):
-                    # there is an intersection!
-                    pushVector = m.normalize_3d(worldSpaceMidpoint - otherMidpoint)
+                        differenceInRadius = rSum - distBetween
 
-                    differenceInRadius = rSum - distBetween
-
-                    i.add_local_position(pushVector[0] * differenceInRadius, pushVector[1] * differenceInRadius, pushVector[2] * differenceInRadius)
+                        i.add_local_position(pushVector[0] * differenceInRadius, pushVector[1] * differenceInRadius, pushVector[2] * differenceInRadius)
 
             i.add_local_position(i.linearVelocity[0] * timeSinceLastFrame,i.linearVelocity[1] * timeSinceLastFrame,i.linearVelocity[2] * timeSinceLastFrame)
                 
