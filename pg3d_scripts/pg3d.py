@@ -1038,6 +1038,19 @@ def namesMatch(a,b):
     
 # ********  UI functions! (the annoying stuff)       ********
 
+def draw_image(frameArray, imgPath, xPos, yPos):
+    rawImg = pg.image.load(imgPath)
+
+    w = rawImg.get_width()
+    h = rawImg.get_height()
+
+    tex = np.zeros((w, h, 3)).astype('uint8')
+    pg.surfarray.surface_to_array(tex, rawImg)
+
+    for i in range(w):
+        for j in range(h):
+            frameArray[int(xPos - w/2) + i, int(yPos - h/2) + j] = tex[i,j]
+
 # draw a rectangle on the screen
 def draw_rect(frameArray, xPos, yPos, xSize, ySize, color):
     minX = int(xPos-xSize/2)
@@ -1106,7 +1119,7 @@ def draw_text(frameArray, text_string, xPos, yPos, color, scale, spacing):
         for i in range(int(w*scale)):
             for j in range(int(h*scale)):
                 if (text_texture[int(i/scale),int(j/scale)][0] > 0):
-                    frameArray[int(xPos) + int(xOffset) + i, int(yPos) + j] = Color.RED
+                    frameArray[int(xPos) + int(xOffset) + i, int(yPos) + j] = color
         
         xOffset += w * scale + spacing
 
