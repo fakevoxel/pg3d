@@ -900,8 +900,9 @@ def destroyObjectWithName(objectName):
             i.objectNames.pop(indexInLevel)
         
     # also, the camera parent might have a reference to it as well
-    if (cameraParent.name == objectName):
-        cameraParent = None
+    if (cameraParent != None):
+        if (cameraParent.name == objectName):
+            cameraParent = None
 
 def destroyObject(obj):
     global cameraParent
@@ -923,8 +924,9 @@ def destroyObject(obj):
             i.objectNames.pop(indexInLevel)
         
     # also, the camera parent might have a reference to it as well
-    if (cameraParent.name == obj.name):
-        cameraParent = None
+    if (cameraParent != None):
+        if (cameraParent.name == obj.name):
+            cameraParent = None
 
 def destroyAllObjects():
     length = len(Model._registry)
